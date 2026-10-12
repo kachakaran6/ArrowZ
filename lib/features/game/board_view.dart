@@ -35,9 +35,7 @@ class _BoardViewState extends State<BoardView> {
   final TransformationController _transformController =
       TransformationController();
 
-  Offset? _pointerDownPos;
-  DateTime? _pointerDownTime;
-  int _activePointers = 0;
+  final Map<int, (Offset pos, DateTime time)> _activePointers = {};
   double _lastCellSize = 0.0;
 
   @override
@@ -63,39 +61,28 @@ class _BoardViewState extends State<BoardView> {
   }
 
   void _handlePointerDown(PointerDownEvent event) {
-    _activePointers++;
-    _pointerDownPos = event.localPosition;
-    _pointerDownTime = DateTime.now();
+    _activePointers[event.pointer] = (event.localPosition, DateTime.now());
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
-    _activePointers = (_activePointers - 1).clamp(0, 10);
-    _pointerDownPos = null;
-    _pointerDownTime = null;
+    _activePointers.remove(event.pointer);
   }
 
-  void _handlePointerUp(PointerUpEvent event, double cellSize) {
-    final downPos = _pointerDownPos;
-    final downTime = _pointerDownTime;
-    final pointerCount = _activePointers;
-    _activePointers = (_activePointers - 1).clamp(0, 10);
-    _pointerDownPos = null;
-    _pointerDownTime = null;
-
-    if (!widget.interactive ||
-        downPos == null ||
-        downTime == null ||
-        pointerCount > 1) {
+  void _handlePointerUp(PointerUpEvent event, double cellSize, double hitPadding) {
+    final record = _activePointers.remove(event.pointer);
+    if (!widget.interactive || record == null) {
       return;
     }
 
+    final (downPos, downTime) = record;
     final elapsedMs = DateTime.now().difference(downTime).inMilliseconds;
     final dist = (event.localPosition - downPos).distance;
 
-    // Fast tap: moved < kTouchSlop and duration < 400ms
-    if (dist <= kTouchSlop && elapsedMs < 400) {
+    // Fast tap: moved < kTouchSlop * 1.5 and duration < 500ms
+    if (dist <= kTouchSlop * 1.5 && elapsedMs < 500) {
+      final boardLocalPos = event.localPosition - Offset(hitPadding, hitPadding);
       final hitId = _hitTester.hitTest(
-        localPosition: event.localPosition,
+        localPosition: boardLocalPos,
         cellSize: cellSize,
         activeThreadIds: widget.activeIds,
       );
@@ -128,28 +115,34 @@ class _BoardViewState extends State<BoardView> {
 
         final boardW = (widget.level.cols - 1) * cellSize;
         final boardH = (widget.level.rows - 1) * cellSize;
+        final hitPadding = cellSize * 0.75;
         final needsPinchZoom = cellSize < ComponentTokens.zoomThresholdCellSize;
 
         Widget boardWidget = Listener(
           behavior: HitTestBehavior.opaque,
           onPointerDown: _handlePointerDown,
           onPointerCancel: _handlePointerCancel,
-          onPointerUp: (event) => _handlePointerUp(event, cellSize),
-          child: SizedBox(
-            width: boardW,
-            height: boardH,
-            child: Semantics(
-              label: 'Puzzle board, ${widget.activeIds.length} threads left',
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  size: Size(boardW, boardH),
-                  painter: BoardPainter(
-                    level: widget.level,
-                    activeIds: widget.activeIds,
-                    cellSize: cellSize,
-                    tokens: tokens,
-                    animator: widget.animator,
-                    reduceMotion: widget.reduceMotion,
+          onPointerUp: (event) => _handlePointerUp(event, cellSize, hitPadding),
+          child: Container(
+            width: boardW + hitPadding * 2,
+            height: boardH + hitPadding * 2,
+            padding: EdgeInsets.all(hitPadding),
+            child: SizedBox(
+              width: boardW,
+              height: boardH,
+              child: Semantics(
+                label: 'Puzzle board, ${widget.activeIds.length} threads left',
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    size: Size(boardW, boardH),
+                    painter: BoardPainter(
+                      level: widget.level,
+                      activeIds: widget.activeIds,
+                      cellSize: cellSize,
+                      tokens: tokens,
+                      animator: widget.animator,
+                      reduceMotion: widget.reduceMotion,
+                    ),
                   ),
                 ),
               ),
@@ -164,7 +157,7 @@ class _BoardViewState extends State<BoardView> {
             maxScale: 3.0,
             onInteractionStart: (details) {
               if (details.pointerCount > 1) {
-                _pointerDownPos = null;
+                _activePointers.clear();
               }
             },
             boundaryMargin: const EdgeInsets.all(24.0),

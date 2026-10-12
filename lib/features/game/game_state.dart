@@ -32,11 +32,11 @@ class GameState {
   final double lastBlockedTapTimeMs;
   final int? lastBlockedThreadId;
 
-  /// Is this level a tutorial level with unlimited mistakes?
-  bool get isTutorial => level.id <= 5;
+  /// Tutorial mode flag (all levels now track mistakes and lives).
+  bool get isTutorial => false;
 
-  /// Remaining mistakes out of 3 allowed (always 3 for tutorial).
-  int get remainingMistakes => isTutorial ? 3 : (3 - mistakes).clamp(0, 3);
+  /// Remaining mistakes out of 3 allowed.
+  int get remainingMistakes => (3 - mistakes).clamp(0, 3);
 
   /// Number of cleared threads.
   int get clearedCount => level.threads.length - activeIds.length;

@@ -141,9 +141,11 @@ class BoardAnimator extends ChangeNotifier {
     required TickerProvider vsync,
   }) {
     _ticker = vsync.createTicker(_handleTick);
+    _stopwatch.start();
   }
 
   late final Ticker _ticker;
+  final Stopwatch _stopwatch = Stopwatch();
 
   final Map<int, ThreadGeometry> geometries = {};
   final Map<int, ActiveExit> exits = {};
@@ -155,14 +157,13 @@ class BoardAnimator extends ChangeNotifier {
   double? enterStartTimeMs;
   double enterTotalMs = 0.0;
 
-  double _nowMs = 0.0;
-  double get nowMs => _nowMs;
+  double get nowMs => _stopwatch.elapsedMicroseconds / 1000.0;
 
   bool get hasActiveAnimations =>
       exits.isNotEmpty ||
       blockeds.isNotEmpty ||
       hintedThreadId != null ||
-      (enterStartTimeMs != null && (_nowMs - enterStartTimeMs!) < enterTotalMs);
+      (enterStartTimeMs != null && (nowMs - enterStartTimeMs!) < enterTotalMs);
 
   void setLevel(Level level, double cellSize) {
     geometries.clear();
@@ -188,13 +189,13 @@ class BoardAnimator extends ChangeNotifier {
       return;
     }
     enterTotalMs = math.min(threadCount * 8.0 + 320.0, 520.0);
-    enterStartTimeMs = _nowMs;
+    enterStartTimeMs = nowMs;
     _ensureTicker();
   }
 
   double entranceProgressFor(int threadIndex, {required bool reduceMotion}) {
     if (reduceMotion || enterStartTimeMs == null) return 1.0;
-    final elapsed = _nowMs - enterStartTimeMs!;
+    final elapsed = nowMs - enterStartTimeMs!;
     final delay = threadIndex * 8.0;
     if (elapsed < delay) return 0.0;
     const duration = 320.0;
@@ -213,7 +214,7 @@ class BoardAnimator extends ChangeNotifier {
     exits[threadId] = ActiveExit(
       threadId: threadId,
       geometry: geom,
-      startTimeMs: _nowMs,
+      startTimeMs: nowMs,
       reduceMotion: reduceMotion,
     );
 
@@ -236,7 +237,7 @@ class BoardAnimator extends ChangeNotifier {
       blockerId: blocker.id,
       distanceNodes: blocker.distanceCells,
       cellSize: cellSize,
-      startTimeMs: _nowMs,
+      startTimeMs: nowMs,
       reduceMotion: reduceMotion,
     );
 
@@ -246,7 +247,7 @@ class BoardAnimator extends ChangeNotifier {
 
   void triggerHint(int threadId) {
     hintedThreadId = threadId;
-    hintStartTimeMs = _nowMs;
+    hintStartTimeMs = nowMs;
     _ensureTicker();
     notifyListeners();
   }
@@ -258,12 +259,12 @@ class BoardAnimator extends ChangeNotifier {
   }
 
   void _handleTick(Duration elapsed) {
-    _nowMs = elapsed.inMicroseconds / 1000.0;
+    final currentMs = nowMs;
 
     // Prune finished exits
     final completedExits = <int>[];
     for (final exit in exits.values) {
-      if (exit.isDone(_nowMs)) {
+      if (exit.isDone(currentMs)) {
         completedExits.add(exit.threadId);
       }
     }
@@ -274,7 +275,7 @@ class BoardAnimator extends ChangeNotifier {
     // Prune finished blocked bounces
     final completedBlockeds = <int>[];
     for (final b in blockeds.values) {
-      if (b.isDone(_nowMs)) {
+      if (b.isDone(currentMs)) {
         completedBlockeds.add(b.threadId);
       }
     }
@@ -283,7 +284,7 @@ class BoardAnimator extends ChangeNotifier {
     }
 
     // Prune hint if expired (>2200ms)
-    if (hintStartTimeMs != null && (_nowMs - hintStartTimeMs!) >= 2200.0) {
+    if (hintStartTimeMs != null && (currentMs - hintStartTimeMs!) >= 2200.0) {
       hintedThreadId = null;
       hintStartTimeMs = null;
     }

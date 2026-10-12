@@ -436,31 +436,27 @@ class _GameScreenState extends ConsumerState<GameScreen>
                       ),
 
                       // Centre: Mistake dots (3 dots, 8dp, 10dp gap)
-                      if (!gameState.isTutorial)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (var i = 0; i < 3; i++) ...[
-                              if (i > 0)
-                                const SizedBox(
-                                  width: ComponentTokens.mistakeDotGap,
-                                ),
-                              Container(
-                                width: ComponentTokens.mistakeDotSize,
-                                height: ComponentTokens.mistakeDotSize,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: i < (3 - gameState.mistakes)
-                                      ? tokens.ink
-                                      : tokens.threadFaint,
-                                ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < 3; i++) ...[
+                            if (i > 0)
+                              const SizedBox(
+                                width: ComponentTokens.mistakeDotGap,
                               ),
-                            ],
+                            Container(
+                              width: ComponentTokens.mistakeDotSize,
+                              height: ComponentTokens.mistakeDotSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: i < (3 - gameState.mistakes)
+                                    ? tokens.ink
+                                    : tokens.threadFaint,
+                              ),
+                            ),
                           ],
-                        )
-                      else
-                        const SizedBox(
-                            width: 44.0), // Reserved space for tutorial
+                        ],
+                      ),
 
                       // Right: Remaining counter ("12" / "of 12")
                       Column(

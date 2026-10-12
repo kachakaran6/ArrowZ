@@ -25,8 +25,34 @@ class Level {
   /// Number of threads in this level.
   int get threadCount => threads.length;
 
-  /// Creates a [Level] from parsed JSON map.
+  /// Creates a [Level] from parsed JSON map (supports both standard and conveyor format).
   factory Level.fromJson(Map<String, dynamic> json, {int? chapter}) {
+    if (json.containsKey('GridXSize') && json.containsKey('Arrows')) {
+      final rows = json['GridYSize'] as int;
+      final cols = json['GridXSize'] as int;
+      final rawArrows = json['Arrows'] as List<dynamic>;
+
+      final threads = <Thread>[];
+      for (var i = 0; i < rawArrows.length; i++) {
+        final arrowMap = rawArrows[i] as Map<String, dynamic>;
+        final rawIndices = arrowMap['Indices'] as List<dynamic>;
+        final cells = rawIndices.map((idx) {
+          final cellIdx = idx as int;
+          return Cell(cellIdx ~/ cols, cellIdx % cols);
+        }).toList(growable: false);
+        threads.add(Thread(i + 1, cells));
+      }
+
+      return Level(
+        id: (json['id'] as int?) ?? 999,
+        rows: rows,
+        cols: cols,
+        threads: threads,
+        shape: 'conveyor',
+        chapter: chapter ?? 1,
+      );
+    }
+
     final id = json['id'] as int;
     final rows = json['rows'] as int;
     final cols = json['cols'] as int;

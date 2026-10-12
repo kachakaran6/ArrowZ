@@ -106,7 +106,7 @@ class GameController extends StateNotifier<GameState> {
       // Blocked thread tap
       final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
       final isDebounced = state.lastBlockedThreadId == threadId &&
-          (nowMs - state.lastBlockedTapTimeMs) < 600.0;
+          (nowMs - state.lastBlockedTapTimeMs) < 250.0;
 
       final blocker = _boardState.firstBlocker(threadId);
       if (blocker != null) {
@@ -122,11 +122,11 @@ class GameController extends StateNotifier<GameState> {
       haptics.medium();
 
       var newMistakes = state.mistakes;
-      if (!isDebounced && !state.isTutorial) {
+      if (!isDebounced) {
         newMistakes++;
       }
 
-      final isFailed = newMistakes >= 3 && !state.isTutorial;
+      final isFailed = newMistakes >= 3;
 
       state = state.copyWith(
         mistakes: newMistakes,

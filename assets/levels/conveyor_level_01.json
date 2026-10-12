@@ -1,0 +1,186 @@
+{
+  "GridXSize": 10,
+  "GridYSize": 10,
+  "Arrows": [
+    {
+      "Indices": [
+        53,
+        43,
+        33,
+        23
+      ],
+      "ColorIndex": 0
+    },
+    {
+      "Indices": [
+        46,
+        56,
+        66,
+        76
+      ],
+      "ColorIndex": 1
+    },
+    {
+      "Indices": [
+        24,
+        25,
+        26,
+        27
+      ],
+      "ColorIndex": 2
+    },
+    {
+      "Indices": [
+        75,
+        74,
+        73,
+        72
+      ],
+      "ColorIndex": 0
+    },
+    {
+      "Indices": [
+        45,
+        44
+      ],
+      "ColorIndex": 1
+    },
+    {
+      "Indices": [
+        54,
+        55
+      ],
+      "ColorIndex": 2
+    },
+    {
+      "Indices": [
+        34,
+        35
+      ],
+      "ColorIndex": 0
+    },
+    {
+      "Indices": [
+        65,
+        64
+      ],
+      "ColorIndex": 1
+    }
+  ],
+  "Conveyors": [
+    {
+      "ConveyorID": 0,
+      "IsClosed": true,
+      "IsAdLocked": false,
+      "knots": [
+        {
+          "gridX": 1,
+          "gridY": 1,
+          "localOffset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "tangentIn": {
+            "x": 0.0,
+            "y": -0.5,
+            "z": 0.0
+          },
+          "tangentOut": {
+            "x": 0.5,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "gridX": 8,
+          "gridY": 1,
+          "localOffset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "tangentIn": {
+            "x": 0.5,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "tangentOut": {
+            "x": 0.0,
+            "y": 0.5,
+            "z": 0.0
+          }
+        },
+        {
+          "gridX": 8,
+          "gridY": 8,
+          "localOffset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "tangentIn": {
+            "x": 0.0,
+            "y": 0.5,
+            "z": 0.0
+          },
+          "tangentOut": {
+            "x": -0.5,
+            "y": 0.0,
+            "z": 0.0
+          }
+        },
+        {
+          "gridX": 1,
+          "gridY": 8,
+          "localOffset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "tangentIn": {
+            "x": -0.5,
+            "y": 0.0,
+            "z": 0.0
+          },
+          "tangentOut": {
+            "x": 0.0,
+            "y": -0.5,
+            "z": 0.0
+          }
+        },
+        {
+          "gridX": 1,
+          "gridY": 1,
+          "localOffset": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "tangentIn": {
+            "x": 0.0,
+            "y": -0.5,
+            "z": 0.0
+          },
+          "tangentOut": {
+            "x": 0.5,
+            "y": 0.0,
+            "z": 0.0
+          }
+        }
+      ]
+    }
+  ],
+  "ExitPoints": [
+    {
+      "CellIndex": 15,
+      "ColorIndex": 0,
+      "LinkedConveyorID": 0
+    },
+    {
+      "CellIndex": 86,
+      "ColorIndex": 1,
+      "LinkedConveyorID": 0
+    },
+    {
+      "CellIndex": 28,
+      "ColorIndex": 2,
+      "LinkedConveyorID": 0
+    }
+  ]
+}

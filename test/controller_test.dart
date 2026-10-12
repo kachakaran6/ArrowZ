@@ -94,7 +94,7 @@ void main() {
       controller.handleThreadTap(1, 24.0);
       expect(controller.state.mistakes, equals(1));
 
-      // Immediate second tap within 600ms on same blocked thread should not add second mistake
+      // Immediate second tap within 250ms on same blocked thread should not add second mistake
       controller.handleThreadTap(1, 24.0);
       expect(controller.state.mistakes, equals(1));
     });
@@ -132,9 +132,9 @@ void main() {
       expect(controller.state.status, equals(GameStatus.failed));
     });
 
-    test('tutorial levels allow unlimited mistakes without failing', () {
+    test('mistakes are tracked on all levels', () {
       final level = Level(
-        id: 2, // Tutorial level
+        id: 2,
         rows: 4,
         cols: 4,
         threads: [
@@ -153,10 +153,9 @@ void main() {
         reduceMotion: false,
       );
 
-      expect(controller.state.isTutorial, isTrue);
-      // Even if mistakes occur, status remains playing
-      controller.state = controller.state.copyWith(mistakes: 5);
-      expect(controller.state.status, equals(GameStatus.playing));
+      controller.handleThreadTap(1, 24.0);
+      expect(controller.state.mistakes, equals(1));
+      expect(controller.state.remainingMistakes, equals(2));
     });
 
     test('star calculation awards correct stars based on mistakes', () {

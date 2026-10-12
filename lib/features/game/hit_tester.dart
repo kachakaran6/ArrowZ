@@ -13,7 +13,7 @@ class BoardHitTester {
     required Offset localPosition,
     required double cellSize,
     required Set<int> activeThreadIds,
-    double tapToleranceCells = 0.5,
+    double tapToleranceCells = 0.65,
   }) {
     if (cellSize <= 0) return null;
 
