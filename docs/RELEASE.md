@@ -4,7 +4,7 @@
 - Current Version: `1.0.0+1` (Version code: 1, Version name: 1.0.0)
 
 ## Play Console Checklist
-- [x] Application name set to **Unwind**
+- [x] Application name set to **ArrowZ** (`com.arrowz.app`)
 - [x] Portrait orientation locked in AndroidManifest.xml and code
 - [x] Material 3 base with 5 hand-tuned themes and WCAG AAA/AA compliant contrast
 - [x] 100% offline gameplay with 200 solvable levels across 10 chapters

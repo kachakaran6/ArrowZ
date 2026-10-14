@@ -1,6 +1,6 @@
-# arrowtapout
+# ArrowZ
 
-A new Flutter project.
+A calm, offline thread-puzzle game in Flutter.
 
 ## Getting Started
 
