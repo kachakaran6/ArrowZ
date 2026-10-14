@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:arrowtapout/design/primitives.dart';
 import 'package:arrowtapout/engine/arrow_extraction_engine.dart';
 import 'package:arrowtapout/engine/board_state.dart';
+import 'package:arrowtapout/engine/dir.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/engine/thread.dart';
 import 'package:flutter/animation.dart';
@@ -74,6 +75,58 @@ class ActiveExit {
   }
 
   bool isDone(double nowMs) => progress(nowMs) >= 1.0;
+}
+
+/// Active wrong move animation driving temporary red highlight and controlled shake.
+class ActiveWrongMove {
+  ActiveWrongMove({
+    required this.threadId,
+    required this.dir,
+    required this.startTimeMs,
+    required this.reduceMotion,
+    this.durationMs = 240.0,
+    this.maxDisplacementPx = 4.0,
+  });
+
+  final int threadId;
+  final Dir dir;
+  final double startTimeMs;
+  final bool reduceMotion;
+  final double durationMs;
+  final double maxDisplacementPx;
+
+  double progress(double nowMs) {
+    if (durationMs <= 0) return 1.0;
+    return ((nowMs - startTimeMs) / durationMs).clamp(0.0, 1.0);
+  }
+
+  bool isDone(double nowMs) => (nowMs - startTimeMs) >= durationMs;
+
+  /// Returns perpendicular shake offset in logical pixels.
+  /// 3 full cycles with smooth decay to 0.
+  ui.Offset shakeOffset(double nowMs) {
+    if (reduceMotion) return ui.Offset.zero;
+    final p = progress(nowMs);
+    if (p >= 1.0) return ui.Offset.zero;
+
+    final decay = 1.0 - p;
+    final wave = math.sin(p * 6.0 * math.pi);
+    final displacement = maxDisplacementPx * wave * decay;
+
+    final perpX = dir.dy.abs();
+    final perpY = dir.dx.abs();
+
+    return ui.Offset(perpX * displacement, perpY * displacement);
+  }
+
+  /// Danger color lerp factor in [0.0, 1.0].
+  /// Arrow turns visibly red immediately, then fades smoothly back to theme color.
+  double dangerLerp(double nowMs) {
+    final p = progress(nowMs);
+    if (p >= 1.0) return 0.0;
+    if (p <= 0.6) return 1.0;
+    return (1.0 - p) / 0.4;
+  }
 }
 
 /// Active blocked bounce animation state.
@@ -150,6 +203,7 @@ class BoardAnimator extends ChangeNotifier {
   final Map<int, ThreadGeometry> geometries = {};
   final Map<int, ActiveExit> exits = {};
   final Map<int, ActiveBlocked> blockeds = {};
+  final Map<int, ActiveWrongMove> wrongMoves = {};
 
   int? hintedThreadId;
   double? hintStartTimeMs;
@@ -162,6 +216,7 @@ class BoardAnimator extends ChangeNotifier {
   bool get hasActiveAnimations =>
       exits.isNotEmpty ||
       blockeds.isNotEmpty ||
+      wrongMoves.isNotEmpty ||
       hintedThreadId != null ||
       (enterStartTimeMs != null && (nowMs - enterStartTimeMs!) < enterTotalMs);
 
@@ -169,6 +224,7 @@ class BoardAnimator extends ChangeNotifier {
     geometries.clear();
     exits.clear();
     blockeds.clear();
+    wrongMoves.clear();
     hintedThreadId = null;
     hintStartTimeMs = null;
     enterStartTimeMs = null;
@@ -218,11 +274,34 @@ class BoardAnimator extends ChangeNotifier {
       reduceMotion: reduceMotion,
     );
 
+    wrongMoves.remove(threadId);
+
     if (hintedThreadId == threadId) {
       hintedThreadId = null;
     }
 
     _ensureTicker();
+    notifyListeners();
+  }
+
+  void triggerWrongMove({
+    required int threadId,
+    required Dir dir,
+    required bool reduceMotion,
+  }) {
+    wrongMoves[threadId] = ActiveWrongMove(
+      threadId: threadId,
+      dir: dir,
+      startTimeMs: nowMs,
+      reduceMotion: reduceMotion,
+    );
+
+    _ensureTicker();
+    notifyListeners();
+  }
+
+  void cancelWrongMoves() {
+    wrongMoves.clear();
     notifyListeners();
   }
 
@@ -272,6 +351,17 @@ class BoardAnimator extends ChangeNotifier {
       exits.remove(id);
     }
 
+    // Prune finished wrong move animations
+    final completedWrongMoves = <int>[];
+    for (final wm in wrongMoves.values) {
+      if (wm.isDone(currentMs)) {
+        completedWrongMoves.add(wm.threadId);
+      }
+    }
+    for (final id in completedWrongMoves) {
+      wrongMoves.remove(id);
+    }
+
     // Prune finished blocked bounces
     final completedBlockeds = <int>[];
     for (final b in blockeds.values) {
@@ -296,8 +386,19 @@ class BoardAnimator extends ChangeNotifier {
     }
   }
 
+  bool _disposed = false;
+  bool get isDisposed => _disposed;
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _ticker.dispose();
     super.dispose();
   }

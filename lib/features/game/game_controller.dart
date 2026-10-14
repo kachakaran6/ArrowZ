@@ -8,6 +8,7 @@ import 'package:arrowtapout/engine/board_state.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/game_state.dart';
 import 'package:arrowtapout/features/game/thread_animator.dart';
+import 'package:arrowtapout/features/game/wrong_move_feedback_controller.dart';
 import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/notification_service.dart';
@@ -24,9 +25,16 @@ class GameController extends StateNotifier<GameState> {
     this.streakRepo,
     this.notificationService,
     this.reduceMotion = false,
+    WrongMoveFeedbackController? feedbackController,
     LevelSnapshot? initialSnapshot,
     bool coachMarkShown = false,
-  })  : _boardState = BoardState(level),
+  })  : feedbackController = feedbackController ??
+            WrongMoveFeedbackController(
+              haptics: haptics,
+              audio: audio,
+              animator: animator,
+            ),
+        _boardState = BoardState(level),
         super(_initState(level, initialSnapshot, coachMarkShown)) {
     if (initialSnapshot != null) {
       // Resume from snapshot: remove already cleared threads
@@ -42,6 +50,7 @@ class GameController extends StateNotifier<GameState> {
   final BoardAnimator animator;
   final AudioService audio;
   final HapticsService haptics;
+  final WrongMoveFeedbackController feedbackController;
   final ProgressRepository progress;
   final SnapshotRepository snapshotRepo;
   final StreakRepository? streakRepo;
@@ -123,21 +132,14 @@ class GameController extends StateNotifier<GameState> {
       // Prevent duplicate action and vibration spam during rapid taps on the same blocked arrow
       if (isDebounced) return;
 
-      // 1. Immediate restrained feedback at the interaction boundary.
-      haptics.medium();
+      final thread = state.level.threads.firstWhere((t) => t.id == threadId);
 
-      // 2. Sound effect.
-      audio.playBlock();
-
-      final blocker = _boardState.firstBlocker(threadId);
-      if (blocker != null) {
-        animator.triggerBlocked(
-          threadId: threadId,
-          blocker: blocker,
-          cellSize: cellSize,
-          reduceMotion: _reduceMotion,
-        );
-      }
+      // Coordinate wrong move feedback (immediate strong haptics, sound, shake, red highlight, semantics)
+      feedbackController.handleWrongMove(
+        threadId: threadId,
+        dir: thread.dir,
+        reduceMotion: _reduceMotion,
+      );
 
       final newMistakes = state.mistakes + 1;
       final isFailed = newMistakes >= 3;
@@ -230,6 +232,7 @@ class GameController extends StateNotifier<GameState> {
   void restartLevel(double cellSize) {
     _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
+    feedbackController.cancel();
     final allIds = {for (final t in state.level.threads) t.id};
 
     _boardState.active.clear();
@@ -255,6 +258,8 @@ class GameController extends StateNotifier<GameState> {
       status: GameStatus.playing,
       stars: 0,
       hintedThreadId: null,
+      lastBlockedTapTimeMs: 0.0,
+      lastBlockedThreadId: null,
     );
   }
 
@@ -275,6 +280,7 @@ class GameController extends StateNotifier<GameState> {
   void dispose() {
     _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
+    feedbackController.dispose();
     if (mounted) {
       super.dispose();
     }

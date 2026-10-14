@@ -107,8 +107,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
   @override
   void dispose() {
-    _animator.dispose();
     _controller?.dispose();
+    _animator.dispose();
     super.dispose();
   }
 
