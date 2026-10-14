@@ -8,6 +8,7 @@ import 'package:arrowtapout/features/settings/settings_screen.dart';
 import 'package:arrowtapout/features/settings/theme_picker_screen.dart';
 import 'package:arrowtapout/features/splash/splash_screen.dart';
 import 'package:arrowtapout/features/stats/stats_screen.dart';
+import 'package:arrowtapout/features/streak/streak_screen.dart';
 import 'package:arrowtapout/router/routes.dart';
 import 'package:arrowtapout/router/transitions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -104,6 +105,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           context: context,
           state: state,
           child: const StatsScreen(),
+        ),
+      ),
+      // Daily Streak
+      GoRoute(
+        path: Routes.streak,
+        pageBuilder: (context, state) => buildFadeThroughPage(
+          context: context,
+          state: state,
+          child: const StreakScreen(),
         ),
       ),
       // Animation Dev Lab

@@ -1,5 +1,6 @@
 import 'package:arrowtapout/app.dart';
 import 'package:arrowtapout/data/progress_repository.dart';
+import 'package:arrowtapout/platform/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,11 +24,14 @@ void main() async {
   );
 
   final prefs = await SharedPreferences.getInstance();
+  final notificationService = LocalNotificationService();
+  await notificationService.initialize();
 
   runApp(
     ProviderScope(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        notificationServiceProvider.overrideWithValue(notificationService),
       ],
       child: const UnwindApp(),
     ),

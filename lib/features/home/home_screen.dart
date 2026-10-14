@@ -1,8 +1,10 @@
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/snapshot_repository.dart';
+import 'package:arrowtapout/data/streak_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
+import 'package:arrowtapout/platform/notification_service.dart';
 import 'package:arrowtapout/platform/play_update_service.dart';
 import 'package:arrowtapout/router/routes.dart';
 import 'package:flutter/material.dart';
@@ -11,11 +13,8 @@ import 'package:go_router/go_router.dart';
 
 /// Minimal, elegant lobby screen for ArrowZ.
 ///
-/// Contains exclusively four elements:
-/// 1. Game Name: ArrowZ
-/// 2. Level number: Current next/resumable level
-/// 3. Play: Primary action
-/// 4. Settings: Unobtrusive secondary action
+/// Contains the core four elements: Game Name, Level Number, Play, Settings,
+/// plus a restrained consecutive-day Streak indicator.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -23,18 +22,41 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   bool _isNavigating = false;
 
   @override
   void initState() {
     super.initState();
-    // Check Play in-app updates at session start
+    WidgetsBinding.instance.addObserver(this);
+
+    // Check Play in-app updates and sync streak status at session start
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref.read(playUpdateServiceProvider).checkForUpdates(context);
+        ref.read(streakRepositoryProvider.notifier).refreshStreakStatus();
+        ref.read(streakRepositoryProvider.notifier).syncReminders(
+              ref.read(notificationServiceProvider),
+            );
       }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      ref.read(streakRepositoryProvider.notifier).refreshStreakStatus();
+      ref.read(streakRepositoryProvider.notifier).syncReminders(
+            ref.read(notificationServiceProvider),
+          );
+    }
   }
 
   void _onPlay(int levelId) {
@@ -42,6 +64,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _isNavigating = true;
     ref.read(hapticsServiceProvider).selection();
     context.push(Routes.play(levelId)).then((_) {
+      if (mounted) {
+        setState(() {
+          _isNavigating = false;
+        });
+      }
+    });
+  }
+
+  void _onStreak() {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    ref.read(hapticsServiceProvider).selection();
+    context.push(Routes.streak).then((_) {
       if (mounted) {
         setState(() {
           _isNavigating = false;
@@ -67,7 +102,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     final progress = ref.watch(progressProvider);
+    final streak = ref.watch(streakRepositoryProvider);
     final snapshot = ref.watch(snapshotRepositoryProvider).getSnapshot();
+    final currentStreak = streak.currentStreak;
 
     // Derive active level: if an active in-progress snapshot exists for an unlocked level,
     // resume that level; otherwise launch the player's next unlocked level.
@@ -92,19 +129,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Top Row: Unobtrusive Settings button
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: IconButton(
-                          key: const Key('lobby_settings_button'),
-                          icon: Icon(
-                            Icons.settings_outlined,
-                            color: tokens.ink,
-                            size: 24.0,
+                      // Top Row: Restrained Streak indicator on the left, Settings on the right
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Semantics(
+                            button: true,
+                            label: 'Streak: $currentStreak days',
+                            child: InkWell(
+                              key: const Key('lobby_streak_button'),
+                              onTap: _onStreak,
+                              borderRadius: BorderRadius.circular(
+                                  Primitives.radiusButton),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: Primitives.space12,
+                                  vertical: Primitives.space8,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.local_fire_department_rounded,
+                                      size: 22.0,
+                                      color: currentStreak > 0
+                                          ? tokens.accent
+                                          : tokens.inkMuted,
+                                    ),
+                                    const SizedBox(width: Primitives.space4),
+                                    Text(
+                                      '$currentStreak',
+                                      key: const Key('lobby_streak_text'),
+                                      style: tokens.typography.body.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: currentStreak > 0
+                                            ? tokens.ink
+                                            : tokens.inkMuted,
+                                        fontSize: 15.0,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
-                          tooltip: 'Settings',
-                          onPressed: _onSettings,
-                        ),
+                          IconButton(
+                            key: const Key('lobby_settings_button'),
+                            icon: Icon(
+                              Icons.settings_outlined,
+                              color: tokens.ink,
+                              size: 24.0,
+                            ),
+                            tooltip: 'Settings',
+                            onPressed: _onSettings,
+                          ),
+                        ],
                       ),
 
                       const Spacer(flex: 2),

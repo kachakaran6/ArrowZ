@@ -2,6 +2,7 @@ import 'package:arrowtapout/data/level_repository.dart';
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/data/snapshot_repository.dart';
+import 'package:arrowtapout/data/streak_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/component_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
@@ -17,6 +18,7 @@ import 'package:arrowtapout/features/game/sheets/pause_sheet.dart';
 import 'package:arrowtapout/features/game/thread_animator.dart';
 import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
+import 'package:arrowtapout/platform/notification_service.dart';
 import 'package:arrowtapout/router/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,6 +70,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
         haptics: ref.read(hapticsServiceProvider),
         progress: ref.read(progressProvider.notifier),
         snapshotRepo: ref.read(snapshotRepositoryProvider),
+        streakRepo: ref.read(streakRepositoryProvider.notifier),
+        notificationService: ref.read(notificationServiceProvider),
         reduceMotion: ref.read(settingsProvider).reduceMotion,
         initialSnapshot: validSnapshot,
         coachMarkShown: coachShown,
