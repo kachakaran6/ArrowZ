@@ -43,6 +43,7 @@ class GameController extends StateNotifier<GameState> {
   final bool reduceMotion;
 
   Timer? _completeTimer;
+  Timer? _snapshotDebounceTimer;
 
   GameState get currentState => state;
 
@@ -85,11 +86,16 @@ class GameController extends StateNotifier<GameState> {
     final canExit = _boardState.canExit(threadId);
 
     if (canExit) {
-      // Free thread: exit immediately
+      // 1. Immediate tactile feedback at the interaction boundary.
+      // Must not wait for exit animations, audio, or snapshot writes.
+      haptics.light();
+
+      // 2. Sound effect.
+      audio.playPull();
+
+      // 3. Update board state & begin path-aware extraction.
       _boardState.remove(threadId);
       animator.triggerExit(threadId, reduceMotion: _reduceMotion);
-      audio.playPull();
-      haptics.light();
 
       final newActive = Set<int>.of(state.activeIds)..remove(threadId);
       state = state.copyWith(
@@ -108,6 +114,15 @@ class GameController extends StateNotifier<GameState> {
       final isDebounced = state.lastBlockedThreadId == threadId &&
           (nowMs - state.lastBlockedTapTimeMs) < 250.0;
 
+      // Prevent duplicate action and vibration spam during rapid taps on the same blocked arrow
+      if (isDebounced) return;
+
+      // 1. Immediate restrained feedback at the interaction boundary.
+      haptics.medium();
+
+      // 2. Sound effect.
+      audio.playBlock();
+
       final blocker = _boardState.firstBlocker(threadId);
       if (blocker != null) {
         animator.triggerBlocked(
@@ -118,14 +133,7 @@ class GameController extends StateNotifier<GameState> {
         );
       }
 
-      audio.playBlock();
-      haptics.medium();
-
-      var newMistakes = state.mistakes;
-      if (!isDebounced) {
-        newMistakes++;
-      }
-
+      final newMistakes = state.mistakes + 1;
       final isFailed = newMistakes >= 3;
 
       state = state.copyWith(
@@ -136,6 +144,7 @@ class GameController extends StateNotifier<GameState> {
       );
 
       if (isFailed) {
+        _snapshotDebounceTimer?.cancel();
         snapshotRepo.clearSnapshot();
       } else {
         _saveSnapshotDebounced();
@@ -144,6 +153,7 @@ class GameController extends StateNotifier<GameState> {
   }
 
   void _handleLevelCompleted() {
+    _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
 
     // 350 ms stillness after last exit before showing complete sheet
@@ -193,6 +203,7 @@ class GameController extends StateNotifier<GameState> {
 
   /// Restarts current level from clean state.
   void restartLevel(double cellSize) {
+    _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
     final allIds = {for (final t in state.level.threads) t.id};
 
@@ -223,16 +234,21 @@ class GameController extends StateNotifier<GameState> {
   }
 
   void _saveSnapshotDebounced() {
-    snapshotRepo.saveSnapshot(
-      levelId: state.level.id,
-      activeThreadIds: state.activeIds,
-      mistakes: state.mistakes,
-      hintsUsed: state.hintsUsed,
-    );
+    _snapshotDebounceTimer?.cancel();
+    _snapshotDebounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted || state.status != GameStatus.playing) return;
+      snapshotRepo.saveSnapshot(
+        levelId: state.level.id,
+        activeThreadIds: state.activeIds,
+        mistakes: state.mistakes,
+        hintsUsed: state.hintsUsed,
+      );
+    });
   }
 
   @override
   void dispose() {
+    _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
     super.dispose();
   }
