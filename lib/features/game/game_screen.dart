@@ -121,7 +121,11 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
     ref.read(hapticsServiceProvider).selection();
     _sheetOpen = false;
-    context.go(Routes.home);
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(Routes.home);
+    }
   }
 
   void _handleRestart() {
