@@ -39,17 +39,17 @@ abstract final class Primitives {
   static const String fontDisplay = 'Newsreader';
   static const String fontUi = 'Manrope';
 
-  // Palette 1: Sage Linen (light)
-  static const Color sageBg = Color(0xFFECEEE4);
-  static const Color sageSurface = Color(0xFFF5F6EF);
-  static const Color sageSurfaceRaised = Color(0xFFFAFBF6);
-  static const Color sageInk = Color(0xFF25302A);
-  static const Color sageInkMuted = Color(0xFF535D4D);
-  static const Color sageThreadFaint = Color(0xFFC9CEBF);
-  static const Color sageAccent = Color(0xFF43653C);
-  static const Color sageOnAccent = Color(0xFFF5F6EF);
-  static const Color sageDanger = Color(0xFFB0503F);
-  static const Color sageSuccess = Color(0xFF4B6E45);
+  // Palette 1: Sage Linen (light) - tuned to match ArrowZ icon
+  static const Color sageBg = Color(0xFFF3F6EE);
+  static const Color sageSurface = Color(0xFFFAFBF6);
+  static const Color sageSurfaceRaised = Color(0xFFFFFFFF);
+  static const Color sageInk = Color(0xFF16261C);
+  static const Color sageInkMuted = Color(0xFF4D6151);
+  static const Color sageThreadFaint = Color(0xFFC7D2C3);
+  static const Color sageAccent = Color(0xFF2C4835);
+  static const Color sageOnAccent = Color(0xFFF4F7EE);
+  static const Color sageDanger = Color(0xFFB04D3B);
+  static const Color sageSuccess = Color(0xFF386840);
 
   // Palette 2: Ink and Brass (dark)
   static const Color brassBg = Color(0xFF14161A);
