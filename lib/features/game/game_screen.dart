@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:arrowtapout/data/level_repository.dart';
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
@@ -11,11 +13,12 @@ import 'package:arrowtapout/features/game/board_view.dart';
 import 'package:arrowtapout/features/game/game_controller.dart';
 import 'package:arrowtapout/features/game/game_state.dart';
 import 'package:arrowtapout/features/game/heart_life_indicator.dart';
+import 'package:arrowtapout/features/game/hint_service.dart';
 import 'package:arrowtapout/features/game/sheets/complete_sheet.dart';
 import 'package:arrowtapout/features/game/sheets/failed_sheet.dart';
 import 'package:arrowtapout/features/game/sheets/howto_sheet.dart';
-import 'package:arrowtapout/features/game/sheets/pause_sheet.dart';
 import 'package:arrowtapout/features/game/thread_animator.dart';
+import 'package:arrowtapout/platform/ad_service.dart';
 import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/notification_service.dart';
@@ -109,35 +112,24 @@ class _GameScreenState extends ConsumerState<GameScreen>
     super.dispose();
   }
 
-  void _openPauseSheet() {
-    if (_sheetOpen || _controller == null) return;
-    _sheetOpen = true;
+  bool _isNavigating = false;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => PauseSheet(
-        onResume: () {
-          _sheetOpen = false;
-        },
-        onRestart: () {
-          _sheetOpen = false;
-          _handleRestart();
-        },
-        onLevels: () {
-          _sheetOpen = false;
-          context.go(Routes.levels);
-        },
-      ),
-    ).then((_) => _sheetOpen = false);
+  void _handleBackToHome() {
+    if (_isNavigating) return;
+    _isNavigating = true;
+
+    ref.read(hapticsServiceProvider).selection();
+    _sheetOpen = false;
+    context.go(Routes.home);
   }
 
   void _handleRestart() {
-    if (_controller == null || _level == null) return;
+    if (_controller == null || _level == null || _sheetOpen) return;
     final state = _controller!.currentState;
     final clearedCount = _level!.threads.length - state.activeIds.length;
+    final hasProgress = clearedCount > 0 || state.mistakes > 0;
 
-    if (clearedCount == 0) {
+    if (!hasProgress) {
       // Nothing cleared yet, restart directly without confirmation
       final dpr = MediaQuery.devicePixelRatioOf(context);
       final cellSize = ComponentTokens.computeLatticeCellSize(
@@ -152,6 +144,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
     }
 
     // Show small confirm sheet
+    _sheetOpen = true;
     final tokens = context.tokens;
     final haptics = ref.read(hapticsServiceProvider);
 
@@ -188,6 +181,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
               children: [
                 Expanded(
                   child: OutlinedButton(
+                    key: const Key('restart_cancel_button'),
                     onPressed: () {
                       haptics.selection();
                       Navigator.of(ctx).pop();
@@ -207,6 +201,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 const SizedBox(width: Primitives.space16),
                 Expanded(
                   child: FilledButton(
+                    key: const Key('restart_confirm_button'),
                     onPressed: () {
                       haptics.selection();
                       Navigator.of(ctx).pop();
@@ -240,7 +235,47 @@ class _GameScreenState extends ConsumerState<GameScreen>
           ],
         ),
       ),
+    ).then((_) => _sheetOpen = false);
+  }
+
+  Future<void> _handleHintTap() async {
+    if (_controller == null || _sheetOpen) return;
+
+    unawaited(ref.read(hapticsServiceProvider).selection());
+    final hintService = ref.read(hintServiceProvider);
+
+    final result = await hintService.requestRewardedHint(
+      controller: _controller!,
     );
+
+    if (!mounted) return;
+
+    if (result.isSuccess) {
+      unawaited(ref.read(hapticsServiceProvider).light());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.message ?? 'Hint applied! Look for the highlighted arrow.',
+            style: const TextStyle(fontFamily: Primitives.fontUi),
+          ),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      if (result.status != HintResultStatus.alreadyInProgress) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.message ?? 'Hint unavailable.',
+              style: const TextStyle(fontFamily: Primitives.fontUi),
+            ),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   void _openHowToPlaySheet() {
@@ -329,7 +364,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
     final tokens = context.tokens;
     final settings = ref.watch(settingsProvider);
     final reduceMotion = settings.reduceMotion;
-    final hintBank = ref.watch(progressProvider).hintBank;
 
     if (_isLoading) {
       return Scaffold(
@@ -379,7 +413,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
       });
     }
 
-    final canUseHint = hintBank > 0 && gameState.hintsUsed < 3;
     final totalThreads = _level!.threads.length;
     final remainingThreads = gameState.activeIds.length;
 
@@ -387,7 +420,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          _openPauseSheet();
+          _handleBackToHome();
         }
       },
       child: Scaffold(
@@ -411,28 +444,26 @@ class _GameScreenState extends ConsumerState<GameScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
+                            key: const Key('game_back_button'),
                             icon: Icon(
                               Icons.arrow_back_rounded,
                               color: tokens.ink,
                               size: 24.0,
                             ),
-                            tooltip: 'Pause',
+                            tooltip: 'Back to Home',
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
                               minWidth: ComponentTokens.minTapTargetSize,
                               minHeight: ComponentTokens.minTapTargetSize,
                             ),
-                            onPressed: () {
-                              ref.read(hapticsServiceProvider).selection();
-                              _openPauseSheet();
-                            },
+                            onPressed: _handleBackToHome,
                           ),
                           const SizedBox(width: Primitives.space4),
                           Text(
                             'Level ${widget.levelId}',
                             style: TextStyle(
                               fontFamily: Primitives.fontDisplay,
-                              fontSize: 24.0,
+                              fontSize: 22.0,
                               fontWeight: FontWeight.w500,
                               color: tokens.ink,
                             ),
@@ -446,39 +477,34 @@ class _GameScreenState extends ConsumerState<GameScreen>
                         reduceMotion: reduceMotion,
                       ),
 
-                      // Right: Remaining counter ("12" / "of 12")
-                      Column(
+                      // Right: Replay button + Hint button (top-right corner)
+                      Row(
                         mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 120),
-                            transitionBuilder: (child, animation) =>
-                                FadeTransition(
-                                    opacity: animation, child: child),
-                            child: Text(
-                              '$remainingThreads',
-                              key: ValueKey(remainingThreads),
-                              style: TextStyle(
-                                fontFamily: Primitives.fontDisplay,
-                                fontSize: 28.0,
-                                height: 1.0,
-                                fontWeight: FontWeight.w500,
-                                color: tokens.ink,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures()
-                                ],
-                              ),
+                          IconButton(
+                            key: const Key('game_replay_button'),
+                            icon: Icon(
+                              Icons.refresh_rounded,
+                              color: tokens.ink,
+                              size: 24.0,
                             ),
+                            tooltip: 'Restart level',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: ComponentTokens.minTapTargetSize,
+                              minHeight: ComponentTokens.minTapTargetSize,
+                            ),
+                            onPressed: () {
+                              ref.read(hapticsServiceProvider).selection();
+                              _handleRestart();
+                            },
                           ),
-                          Text(
-                            'of $totalThreads',
-                            style: TextStyle(
-                              fontFamily: Primitives.fontUi,
-                              fontSize: 12.0,
-                              fontWeight: FontWeight.w500,
-                              color: tokens.inkMuted,
-                            ),
+                          const SizedBox(width: Primitives.space4),
+                          _HintButton(
+                            key: const Key('game_hint_button'),
+                            controller: _controller!,
+                            tokens: tokens,
+                            onHintTap: _handleHintTap,
                           ),
                         ],
                       ),
@@ -557,99 +583,41 @@ class _GameScreenState extends ConsumerState<GameScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Restart (Left aligned)
-                      InkWell(
-                        onTap: () {
-                          ref.read(hapticsServiceProvider).selection();
-                          _handleRestart();
-                        },
-                        borderRadius:
-                            BorderRadius.circular(Primitives.radiusButton),
-                        child: Container(
-                          constraints: const BoxConstraints(
-                            minHeight: ComponentTokens.minTapTargetSize,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          alignment: Alignment.center,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.refresh_rounded,
-                                size: 20.0,
-                                color: tokens.inkMuted,
+                      // Remaining threads counter
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 120),
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(
+                                    opacity: animation, child: child),
+                            child: Text(
+                              '$remainingThreads',
+                              key: ValueKey(remainingThreads),
+                              style: TextStyle(
+                                fontFamily: Primitives.fontDisplay,
+                                fontSize: 20.0,
+                                height: 1.0,
+                                fontWeight: FontWeight.w500,
+                                color: tokens.ink,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ],
                               ),
-                              const SizedBox(width: 6.0),
-                              Text(
-                                'Restart',
-                                style: TextStyle(
-                                  fontFamily: Primitives.fontUi,
-                                  fontSize: 14.0,
-                                  fontWeight: FontWeight.w600,
-                                  color: tokens.inkMuted,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
-
-                      // Hint (Centred)
-                      InkWell(
-                        onTap: canUseHint
-                            ? () {
-                                ref.read(hapticsServiceProvider).selection();
-                                _controller?.useHint();
-                              }
-                            : null,
-                        borderRadius:
-                            BorderRadius.circular(Primitives.radiusButton),
-                        child: Container(
-                          constraints: const BoxConstraints(
-                            minHeight: ComponentTokens.minTapTargetSize,
+                          const SizedBox(width: 6.0),
+                          Text(
+                            'of $totalThreads remaining',
+                            style: TextStyle(
+                              fontFamily: Primitives.fontUi,
+                              fontSize: 13.0,
+                              fontWeight: FontWeight.w500,
+                              color: tokens.inkMuted,
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          alignment: Alignment.center,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.lightbulb_outline_rounded,
-                                size: 20.0,
-                                color: canUseHint
-                                    ? tokens.accent
-                                    : tokens.inkFaint,
-                              ),
-                              const SizedBox(width: 6.0),
-                              RichText(
-                                text: TextSpan(
-                                  text: 'Hint  ',
-                                  style: TextStyle(
-                                    fontFamily: Primitives.fontUi,
-                                    fontSize: 14.0,
-                                    fontWeight: FontWeight.w600,
-                                    color: canUseHint
-                                        ? tokens.inkMuted
-                                        : tokens.inkFaint,
-                                  ),
-                                  children: [
-                                    TextSpan(
-                                      text: '$hintBank',
-                                      style: TextStyle(
-                                        fontFamily: Primitives.fontUi,
-                                        fontSize: 14.0,
-                                        fontWeight: FontWeight.w700,
-                                        color: canUseHint
-                                            ? tokens.accent
-                                            : tokens.inkFaint,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                        ],
                       ),
 
                       // How to play (Right aligned)
@@ -695,6 +663,66 @@ class _GameScreenState extends ConsumerState<GameScreen>
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HintButton extends ConsumerWidget {
+  const _HintButton({
+    super.key,
+    required this.controller,
+    required this.tokens,
+    required this.onHintTap,
+  });
+
+  final GameController controller;
+  final AppTokens tokens;
+  final VoidCallback onHintTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hintService = ref.watch(hintServiceProvider);
+    final adService = ref.watch(rewardedAdServiceProvider);
+    final gameState = controller.currentState;
+
+    final isLevelPlaying = gameState.status == GameStatus.playing;
+    final isRequesting = hintService.isRequestInProgress;
+    final isAdLoading = adService.state == RewardedAdState.loading;
+
+    final isInteractive = isLevelPlaying && !isRequesting;
+
+    Widget iconWidget;
+    if (isRequesting || isAdLoading) {
+      iconWidget = SizedBox(
+        width: 18.0,
+        height: 18.0,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.0,
+          valueColor: AlwaysStoppedAnimation<Color>(tokens.accent),
+        ),
+      );
+    } else {
+      iconWidget = Icon(
+        Icons.lightbulb_outline_rounded,
+        color: isInteractive ? tokens.accent : tokens.inkFaint,
+        size: 24.0,
+      );
+    }
+
+    return Semantics(
+      button: true,
+      label: 'Hint',
+      enabled: isInteractive,
+      child: IconButton(
+        icon: iconWidget,
+        tooltip: 'Hint',
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(
+          minWidth: ComponentTokens.minTapTargetSize,
+          minHeight: ComponentTokens.minTapTargetSize,
+        ),
+        onPressed: isInteractive ? onHintTap : null,
       ),
     );
   }

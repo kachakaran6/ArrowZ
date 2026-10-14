@@ -186,9 +186,30 @@ class GameController extends StateNotifier<GameState> {
     });
   }
 
-  /// Uses a hint from the global bank to highlight an optimal free thread for 2 seconds.
+  /// Returns the ID of an optimal unobstructed thread that can currently exit, or null.
+  int? chooseHintThread() {
+    if (state.status != GameStatus.playing) return null;
+    return _boardState.chooseHintThread();
+  }
+
+  /// Grants a rewarded hint by triggering a 2-second highlight on [hintId] without
+  /// removing the thread, consuming a heart life, or recording a mistake.
+  bool grantRewardedHint(int hintId) {
+    if (!mounted || state.status != GameStatus.playing) return false;
+    if (!state.activeIds.contains(hintId)) return false;
+    if (!_boardState.canExit(hintId)) return false;
+
+    animator.triggerHint(hintId);
+    state = state.copyWith(
+      hintsUsed: state.hintsUsed + 1,
+      hintedThreadId: hintId,
+    );
+    return true;
+  }
+
+  /// Legacy helper for consuming from bank, preserved for compatibility.
   Future<void> useHint() async {
-    if (state.status != GameStatus.playing) return;
+    if (!mounted || state.status != GameStatus.playing) return;
     if (state.hintsUsed >= 3) return;
 
     final hintId = _boardState.chooseHintThread();
@@ -197,11 +218,7 @@ class GameController extends StateNotifier<GameState> {
     final consumed = await progress.consumeHint();
     if (!consumed) return;
 
-    animator.triggerHint(hintId);
-    state = state.copyWith(
-      hintsUsed: state.hintsUsed + 1,
-      hintedThreadId: hintId,
-    );
+    grantRewardedHint(hintId);
   }
 
   void dismissCoachMark() {
@@ -258,6 +275,8 @@ class GameController extends StateNotifier<GameState> {
   void dispose() {
     _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
-    super.dispose();
+    if (mounted) {
+      super.dispose();
+    }
   }
 }
