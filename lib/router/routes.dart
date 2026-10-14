@@ -7,6 +7,7 @@ abstract final class Routes {
   static const String theme = '/settings/theme';
   static const String howToPlay = '/howto';
   static const String stats = '/stats';
+  static const String streak = '/streak';
   static const String devLab = '/dev/lab';
 
   /// Generates the route path for playing level [id].

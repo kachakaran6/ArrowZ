@@ -4,6 +4,7 @@ import 'package:arrowtapout/data/stats_and_snapshot_models.dart';
 import 'package:arrowtapout/design/theme_provider.dart';
 import 'package:arrowtapout/design/themes.dart';
 import 'package:arrowtapout/features/home/home_screen.dart';
+import 'package:arrowtapout/platform/notification_service.dart';
 import 'package:arrowtapout/platform/play_update_service.dart';
 import 'package:arrowtapout/router/routes.dart';
 import 'package:flutter/material.dart';
@@ -34,6 +35,8 @@ void main() {
           _MockSnapshotRepository(snapshot),
         ),
         playUpdateServiceProvider.overrideWithValue(NoOpUpdateService()),
+        notificationServiceProvider
+            .overrideWithValue(FakeNotificationService()),
         themeModeProvider.overrideWith((ref) => themeMode),
       ],
       child: router != null

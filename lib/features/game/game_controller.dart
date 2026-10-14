@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/snapshot_repository.dart';
 import 'package:arrowtapout/data/stats_and_snapshot_models.dart';
+import 'package:arrowtapout/data/streak_repository.dart';
 import 'package:arrowtapout/engine/board_state.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/game_state.dart';
 import 'package:arrowtapout/features/game/thread_animator.dart';
 import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
+import 'package:arrowtapout/platform/notification_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GameController extends StateNotifier<GameState> {
@@ -19,6 +21,8 @@ class GameController extends StateNotifier<GameState> {
     required this.haptics,
     required this.progress,
     required this.snapshotRepo,
+    this.streakRepo,
+    this.notificationService,
     this.reduceMotion = false,
     LevelSnapshot? initialSnapshot,
     bool coachMarkShown = false,
@@ -40,6 +44,8 @@ class GameController extends StateNotifier<GameState> {
   final HapticsService haptics;
   final ProgressRepository progress;
   final SnapshotRepository snapshotRepo;
+  final StreakRepository? streakRepo;
+  final NotificationService? notificationService;
   final bool reduceMotion;
 
   Timer? _completeTimer;
@@ -175,6 +181,8 @@ class GameController extends StateNotifier<GameState> {
         threadsCleared: state.level.threads.length,
         mistakes: state.mistakes,
       );
+
+      streakRepo?.recordQualifyingPlay(null, notificationService);
     });
   }
 
