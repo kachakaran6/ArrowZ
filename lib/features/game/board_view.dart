@@ -68,7 +68,8 @@ class _BoardViewState extends State<BoardView> {
     _activePointers.remove(event.pointer);
   }
 
-  void _handlePointerUp(PointerUpEvent event, double cellSize, double hitPadding) {
+  void _handlePointerUp(
+      PointerUpEvent event, double cellSize, double hitPadding) {
     final record = _activePointers.remove(event.pointer);
     if (!widget.interactive || record == null) {
       return;
@@ -80,7 +81,8 @@ class _BoardViewState extends State<BoardView> {
 
     // Fast tap: moved < kTouchSlop * 1.5 and duration < 500ms
     if (dist <= kTouchSlop * 1.5 && elapsedMs < 500) {
-      final boardLocalPos = event.localPosition - Offset(hitPadding, hitPadding);
+      final boardLocalPos =
+          event.localPosition - Offset(hitPadding, hitPadding);
       final hitId = _hitTester.hitTest(
         localPosition: boardLocalPos,
         cellSize: cellSize,
