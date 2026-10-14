@@ -1,15 +1,7 @@
-import 'dart:async';
-
 import 'package:arrowtapout/data/progress_repository.dart';
-import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/data/snapshot_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
-import 'package:arrowtapout/engine/cell.dart';
-import 'package:arrowtapout/engine/level.dart';
-import 'package:arrowtapout/engine/thread.dart';
-import 'package:arrowtapout/features/game/board_view.dart';
-import 'package:arrowtapout/features/game/thread_animator.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/play_update_service.dart';
 import 'package:arrowtapout/router/routes.dart';
@@ -17,6 +9,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+/// Minimal, elegant lobby screen for ArrowZ.
+///
+/// Contains exclusively four elements:
+/// 1. Game Name: ArrowZ
+/// 2. Level number: Current next/resumable level
+/// 3. Play: Primary action
+/// 4. Settings: Unobtrusive secondary action
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -24,83 +23,44 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen>
-    with SingleTickerProviderStateMixin {
-  late BoardAnimator _ambientAnimator;
-  late Level _ambientLevel;
-  late Set<int> _ambientActiveIds;
-  Timer? _ambientLoopTimer;
-
-  static const List<String> _chapterNames = [
-    'First Threads',
-    'Loose Ends',
-    'Straight Talk',
-    'Corners',
-    'Spirals',
-    'Crosscurrents',
-    'Dense Weave',
-    'Labyrinth',
-    'Long Form',
-    'Masterworks',
-  ];
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _isNavigating = false;
 
   @override
   void initState() {
     super.initState();
-    _ambientAnimator = BoardAnimator(vsync: this);
-    _initAmbientBoard();
-
     // Check Play in-app updates at session start
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(playUpdateServiceProvider).checkForUpdates(context);
-    });
-  }
-
-  void _initAmbientBoard() {
-    _ambientLevel = Level(
-      id: 999,
-      rows: 7,
-      cols: 8,
-      threads: [
-        Thread(1, [const Cell(1, 1), const Cell(1, 2), const Cell(1, 3)]),
-        Thread(2, [const Cell(2, 5), const Cell(2, 4), const Cell(2, 3)]),
-        Thread(3, [const Cell(4, 1), const Cell(3, 1), const Cell(2, 1)]),
-        Thread(4, [const Cell(3, 6), const Cell(4, 6), const Cell(5, 6)]),
-        Thread(5, [const Cell(5, 2), const Cell(5, 3), const Cell(5, 4)]),
-        Thread(6, [const Cell(0, 4), const Cell(0, 5), const Cell(0, 6)]),
-      ],
-    );
-    _ambientActiveIds = {1, 2, 3, 4, 5, 6};
-    _ambientAnimator.setLevel(_ambientLevel, 24.0);
-
-    final reduceMotion = ref.read(settingsProvider).reduceMotion;
-    if (!reduceMotion) {
-      _startAmbientLoop();
-    }
-  }
-
-  void _startAmbientLoop() {
-    _ambientLoopTimer?.cancel();
-    _ambientLoopTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      if (!mounted) return;
-      if (_ambientActiveIds.isEmpty) {
-        _ambientActiveIds = {1, 2, 3, 4, 5, 6};
-        _ambientAnimator.setLevel(_ambientLevel, 24.0);
-        setState(() {});
-      } else {
-        final nextId = _ambientActiveIds.first;
-        _ambientActiveIds.remove(nextId);
-        _ambientAnimator.triggerExit(nextId, reduceMotion: false);
-        setState(() {});
+      if (mounted) {
+        ref.read(playUpdateServiceProvider).checkForUpdates(context);
       }
     });
   }
 
-  @override
-  void dispose() {
-    _ambientLoopTimer?.cancel();
-    _ambientAnimator.dispose();
-    super.dispose();
+  void _onPlay(int levelId) {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    ref.read(hapticsServiceProvider).selection();
+    context.push(Routes.play(levelId)).then((_) {
+      if (mounted) {
+        setState(() {
+          _isNavigating = false;
+        });
+      }
+    });
+  }
+
+  void _onSettings() {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    ref.read(hapticsServiceProvider).selection();
+    context.push(Routes.settings).then((_) {
+      if (mounted) {
+        setState(() {
+          _isNavigating = false;
+        });
+      }
+    });
   }
 
   @override
@@ -108,192 +68,114 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final tokens = context.tokens;
     final progress = ref.watch(progressProvider);
     final snapshot = ref.watch(snapshotRepositoryProvider).getSnapshot();
-    final haptics = ref.read(hapticsServiceProvider);
 
-    // If there is an active snapshot for unlocked level, continue that level
+    // Derive active level: if an active in-progress snapshot exists for an unlocked level,
+    // resume that level; otherwise launch the player's next unlocked level.
     final currentLevel =
-        snapshot != null && snapshot.levelId <= progress.highestUnlocked
-            ? snapshot.levelId
-            : progress.highestUnlocked;
-
-    final chapterIndex = ((currentLevel - 1) ~/ 20).clamp(0, 9);
-    final chapterName = _chapterNames[chapterIndex];
+        (snapshot != null && snapshot.levelId <= progress.highestUnlocked)
+            ? snapshot.levelId.clamp(1, 200)
+            : progress.highestUnlocked.clamp(1, 200);
 
     return Scaffold(
       backgroundColor: tokens.bg,
       body: SafeArea(
-        child: Stack(
-          children: [
-            // Faint ambient background board
-            Positioned.fill(
-              child: Opacity(
-                opacity: 0.08,
-                child: Center(
-                  child: BoardView(
-                    level: _ambientLevel,
-                    activeIds: _ambientActiveIds,
-                    animator: _ambientAnimator,
-                    interactive: false,
-                    onThreadTap: (_) {},
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420.0),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Primitives.space24,
+                    vertical: Primitives.space16,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Top Row: Unobtrusive Settings button
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: IconButton(
+                          key: const Key('lobby_settings_button'),
+                          icon: Icon(
+                            Icons.settings_outlined,
+                            color: tokens.ink,
+                            size: 24.0,
+                          ),
+                          tooltip: 'Settings',
+                          onPressed: _onSettings,
+                        ),
+                      ),
+
+                      const Spacer(flex: 2),
+
+                      // Center: Game Name & Level Number
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'ArrowZ',
+                              key: const Key('lobby_game_title'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: Primitives.fontDisplay,
+                                fontSize: 44.0,
+                                height: 1.1,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.5,
+                                color: tokens.ink,
+                              ),
+                            ),
+                            const SizedBox(height: Primitives.space12),
+                            Text(
+                              'Level $currentLevel',
+                              key: const Key('lobby_level_number'),
+                              textAlign: TextAlign.center,
+                              style: tokens.typography.heading.copyWith(
+                                color: tokens.inkMuted,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const Spacer(flex: 3),
+
+                      // Bottom: Primary Play Action
+                      FilledButton(
+                        key: const Key('lobby_play_button'),
+                        onPressed: () => _onPlay(currentLevel),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: tokens.accent,
+                          foregroundColor: tokens.onAccent,
+                          minimumSize: const Size.fromHeight(56.0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              Primitives.radiusButton,
+                            ),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          'Play',
+                          style: tokens.typography.label.copyWith(
+                            color: tokens.onAccent,
+                            fontSize: 17.0,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: Primitives.space16),
+                    ],
                   ),
                 ),
               ),
-            ),
-
-            // Foreground UI
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: Primitives.space24,
-                vertical: Primitives.space16,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Top Row: Wordmark & Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'ArrowZ',
-                        style: tokens.typography.title.copyWith(
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.bar_chart_rounded,
-                                color: tokens.ink, size: 22.0),
-                            tooltip: 'Stats',
-                            onPressed: () {
-                              haptics.selection();
-                              context.push(Routes.stats);
-                            },
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.settings_outlined,
-                                color: tokens.ink, size: 22.0),
-                            tooltip: 'Settings',
-                            onPressed: () {
-                              haptics.selection();
-                              context.push(Routes.settings);
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-
-                  const Spacer(flex: 2),
-
-                  // Center Level Numeral Display
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '$currentLevel',
-                          style: TextStyle(
-                            fontFamily: Primitives.fontDisplay,
-                            fontSize: 72.0,
-                            height: 1.0,
-                            fontWeight: FontWeight.w400,
-                            color: tokens.ink,
-                            fontFeatures: const [FontFeature.tabularFigures()],
-                          ),
-                        ),
-                        const SizedBox(height: Primitives.space8),
-                        Text(
-                          'Level $currentLevel',
-                          style: tokens.typography.heading.copyWith(
-                            color: tokens.ink,
-                          ),
-                        ),
-                        const SizedBox(height: Primitives.space4),
-                        Text(
-                          chapterName,
-                          style: tokens.typography.body.copyWith(
-                            color: tokens.inkMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const Spacer(flex: 3),
-
-                  // Action buttons
-                  FilledButton(
-                    onPressed: () {
-                      haptics.selection();
-                      context.push(Routes.play(currentLevel));
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: tokens.accent,
-                      foregroundColor: tokens.onAccent,
-                      minimumSize: const Size.fromHeight(52.0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(Primitives.radiusButton),
-                      ),
-                    ),
-                    child: Text(
-                      'Continue',
-                      style: tokens.typography.label.copyWith(
-                        color: tokens.onAccent,
-                        fontSize: 15.0,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: Primitives.space12),
-
-                  OutlinedButton(
-                    onPressed: () {
-                      haptics.selection();
-                      context.push(Routes.levels);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: tokens.ink,
-                      side: BorderSide(color: tokens.threadFaint, width: 1.5),
-                      minimumSize: const Size.fromHeight(52.0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(Primitives.radiusButton),
-                      ),
-                    ),
-                    child: Text(
-                      'Levels',
-                      style: tokens.typography.label.copyWith(fontSize: 15.0),
-                    ),
-                  ),
-
-                  const SizedBox(height: Primitives.space8),
-
-                  TextButton(
-                    onPressed: () {
-                      haptics.selection();
-                      context.push(Routes.howToPlay);
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: tokens.inkMuted,
-                      minimumSize: const Size.fromHeight(44.0),
-                    ),
-                    child: Text(
-                      'How to play',
-                      style: tokens.typography.label.copyWith(
-                        color: tokens.inkMuted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: Primitives.space8),
-                ],
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
