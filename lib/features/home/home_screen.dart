@@ -154,7 +154,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Unwind',
+                        'ArrowZ',
                         style: tokens.typography.title.copyWith(
                           fontWeight: FontWeight.w600,
                           letterSpacing: -0.5,

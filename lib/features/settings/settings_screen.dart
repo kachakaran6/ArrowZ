@@ -287,7 +287,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       haptics.selection();
                       showLicensePage(
                         context: context,
-                        applicationName: 'Unwind',
+                        applicationName: 'ArrowZ',
                         applicationVersion: _version,
                       );
                     },

@@ -13,7 +13,7 @@ class UnwindApp extends ConsumerWidget {
     final themeData = ref.watch(currentThemeProvider);
 
     return MaterialApp.router(
-      title: 'Unwind',
+      title: 'ArrowZ',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: themeData,
