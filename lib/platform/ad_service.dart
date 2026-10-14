@@ -173,9 +173,12 @@ class GoogleMobileAdsRewardedAdService
   GoogleMobileAdsRewardedAdService({
     String? androidAdUnitId,
     String? iosAdUnitId,
-  })  : _androidAdUnitId =
-            androidAdUnitId ?? 'ca-app-pub-3940256099942544/5224354917',
-        _iosAdUnitId = iosAdUnitId ?? 'ca-app-pub-3940256099942544/1712485313';
+  })  : _androidAdUnitId = androidAdUnitId ?? rewardedAdUnitId,
+        _iosAdUnitId = iosAdUnitId ?? rewardedAdUnitId;
+
+  /// AdMob Rewarded Ad Unit ID for ArrowZ.
+  static const String rewardedAdUnitId =
+      'ca-app-pub-5777985527920683/5941678033';
 
   final String _androidAdUnitId;
   final String _iosAdUnitId;

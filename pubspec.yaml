@@ -27,10 +27,12 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   integration_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
   assets:
+    - assets/icon.png
     - assets/levels/
     - assets/fonts/
     - assets/audio/
@@ -42,3 +44,17 @@ flutter:
     - family: Manrope
       fonts:
         - asset: assets/fonts/Manrope.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon.png"
+  web:
+    generate: true
+    image_path: "assets/icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon.png"

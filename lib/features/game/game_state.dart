@@ -44,6 +44,16 @@ class GameState {
   /// Number of cleared threads.
   int get clearedCount => level.threads.length - activeIds.length;
 
+  /// Total number of arrows at the beginning of the level.
+  int get totalArrows => level.threads.length;
+
+  /// Number of arrows successfully removed.
+  int get removedArrows => clearedCount;
+
+  /// Normalized level progress value clamped to [0.0, 1.0].
+  double get progress =>
+      totalArrows == 0 ? 0.0 : (removedArrows / totalArrows).clamp(0.0, 1.0);
+
   /// Calculates stars on completion: 3 for 0 mistakes, 2 for 1-2 mistakes, 1 otherwise.
   static int calculateStars(int mistakes) {
     if (mistakes == 0) return 3;

@@ -3,9 +3,9 @@
     "short_name": "ArrowZ",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#EAECE6",
+    "theme_color": "#25302A",
+    "description": "ArrowZ — Calm, offline thread-puzzle game.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

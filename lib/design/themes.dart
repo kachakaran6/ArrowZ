@@ -26,16 +26,18 @@ abstract final class AppThemes {
     surfaceRaised: Primitives.sageSurfaceRaised,
     ink: Primitives.sageInk,
     inkMuted: Primitives.sageInkMuted,
-    inkFaint: Color(0xFF8C9686),
+    inkFaint: Color(0xFF7D8F81),
     thread: Primitives.sageInk,
     threadFaint: Primitives.sageThreadFaint,
     accent: Primitives.sageAccent,
     onAccent: Primitives.sageOnAccent,
     danger: Primitives.sageDanger,
     success: Primitives.sageSuccess,
-    scrim: Color(0x6625302A),
-    boardEdge: Color(0x2225302A),
-    gridDot: Color(0xFFB9BFAF),
+    scrim: Color(0x6616261C),
+    boardEdge: Color(0x2216261C),
+    gridDot: Color(0xFFB8C6B3),
+    progressFill: Color(0xFF7FA277),
+    progressTrack: Color(0xFFD7E1D2),
     typography: AppTypography(
       display: TextStyle(
         fontFamily: Primitives.fontDisplay,
@@ -101,6 +103,8 @@ abstract final class AppThemes {
     scrim: Color(0x66000000),
     boardEdge: Color(0x22ECE6D8),
     gridDot: Color(0xFF3A3F47),
+    progressFill: Color(0xFFCCA866),
+    progressTrack: Color(0xFF343840),
     typography: AppTypography(
       display: TextStyle(
         fontFamily: Primitives.fontDisplay,
@@ -166,6 +170,8 @@ abstract final class AppThemes {
     scrim: Color(0x6622303A),
     boardEdge: Color(0x2222303A),
     gridDot: Color(0xFFB4C0C8),
+    progressFill: Color(0xFF7FA4B5),
+    progressTrack: Color(0xFFC4CED4),
     typography: AppTypography(
       display: TextStyle(
         fontFamily: Primitives.fontDisplay,
@@ -231,6 +237,8 @@ abstract final class AppThemes {
     scrim: Color(0x663A2626),
     boardEdge: Color(0x223A2626),
     gridDot: Color(0xFFCDB5AC),
+    progressFill: Color(0xFFB87888),
+    progressTrack: Color(0xFFD9C5BD),
     typography: AppTypography(
       display: TextStyle(
         fontFamily: Primitives.fontDisplay,
@@ -296,6 +304,8 @@ abstract final class AppThemes {
     scrim: Color(0x66000000),
     boardEdge: Color(0x22E9E2D6),
     gridDot: Color(0xFF46403A),
+    progressFill: Color(0xFFDC966E),
+    progressTrack: Color(0xFF3A3530),
     typography: AppTypography(
       display: TextStyle(
         fontFamily: Primitives.fontDisplay,
