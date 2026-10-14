@@ -23,6 +23,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
     required this.scrim,
     required this.boardEdge,
     required this.gridDot,
+    required this.progressFill,
+    required this.progressTrack,
     required this.typography,
   });
 
@@ -42,6 +44,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
   final Color scrim;
   final Color boardEdge;
   final Color gridDot;
+  final Color progressFill;
+  final Color progressTrack;
 
   // Typography
   final AppTypography typography;
@@ -91,6 +95,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
     Color? scrim,
     Color? boardEdge,
     Color? gridDot,
+    Color? progressFill,
+    Color? progressTrack,
     AppTypography? typography,
   }) {
     return AppTokens(
@@ -109,6 +115,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
       scrim: scrim ?? this.scrim,
       boardEdge: boardEdge ?? this.boardEdge,
       gridDot: gridDot ?? this.gridDot,
+      progressFill: progressFill ?? this.progressFill,
+      progressTrack: progressTrack ?? this.progressTrack,
       typography: typography ?? this.typography,
     );
   }
@@ -132,6 +140,8 @@ class AppTokens extends ThemeExtension<AppTokens> {
       scrim: Color.lerp(scrim, other.scrim, t)!,
       boardEdge: Color.lerp(boardEdge, other.boardEdge, t)!,
       gridDot: Color.lerp(gridDot, other.gridDot, t)!,
+      progressFill: Color.lerp(progressFill, other.progressFill, t)!,
+      progressTrack: Color.lerp(progressTrack, other.progressTrack, t)!,
       typography: AppTypography.lerp(typography, other.typography, t),
     );
   }

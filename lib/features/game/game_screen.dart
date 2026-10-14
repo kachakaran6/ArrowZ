@@ -14,6 +14,7 @@ import 'package:arrowtapout/features/game/game_controller.dart';
 import 'package:arrowtapout/features/game/game_state.dart';
 import 'package:arrowtapout/features/game/heart_life_indicator.dart';
 import 'package:arrowtapout/features/game/hint_service.dart';
+import 'package:arrowtapout/features/game/level_progress_bar.dart';
 import 'package:arrowtapout/features/game/sheets/complete_sheet.dart';
 import 'package:arrowtapout/features/game/sheets/failed_sheet.dart';
 import 'package:arrowtapout/features/game/sheets/howto_sheet.dart';
@@ -513,13 +514,17 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 ),
               ),
 
-              // --- 2. Top Hairline ---
-              Container(
-                height: 1.0,
-                margin: const EdgeInsets.symmetric(
+              // --- 2. Level Progress Bar ---
+              Padding(
+                padding: const EdgeInsets.symmetric(
                   horizontal: ComponentTokens.pagePadding,
+                  vertical: Primitives.space8,
                 ),
-                color: tokens.threadFaint,
+                child: LevelProgressBar(
+                  key: const Key('level_progress_bar'),
+                  progress: gameState.progress,
+                  reduceMotion: reduceMotion,
+                ),
               ),
 
               // Coach Mark (Level 1)
