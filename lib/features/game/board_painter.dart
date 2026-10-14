@@ -216,10 +216,16 @@ class BoardPainter extends CustomPainter {
           canvas.drawPath(extracted.visiblePath, _shadowPaint);
         }
       } else {
-        final activeBlocked = animator.blockeds[tid];
-        if (activeBlocked != null) {
-          final dispPx = activeBlocked.displacementPx(nowMs);
-          canvas.translate(thread.dir.dx * dispPx, thread.dir.dy * dispPx);
+        final activeWrongMove = animator.wrongMoves[tid];
+        if (activeWrongMove != null) {
+          final offset = activeWrongMove.shakeOffset(nowMs);
+          canvas.translate(offset.dx, offset.dy);
+        } else {
+          final activeBlocked = animator.blockeds[tid];
+          if (activeBlocked != null) {
+            final dispPx = activeBlocked.displacementPx(nowMs);
+            canvas.translate(thread.dir.dx * dispPx, thread.dir.dy * dispPx);
+          }
         }
         _shadowPaint.color = tokens.ink.withValues(alpha: 0.12);
         canvas.drawPath(geom.basePath, _shadowPaint);
@@ -233,6 +239,7 @@ class BoardPainter extends CustomPainter {
       final tid = thread.id;
       final isActive = activeIds.contains(tid);
       final activeExit = animator.exits[tid];
+      final activeWrongMove = animator.wrongMoves[tid];
       final geom = animator.geometries[tid];
 
       if (geom == null || (!isActive && activeExit == null)) {
@@ -254,6 +261,30 @@ class BoardPainter extends CustomPainter {
           armLengthPx: armLength,
           paint: _threadPaint,
         );
+      } else if (activeWrongMove != null) {
+        // --- Wrong Move Feedback: Controlled Shake & Red Highlight ---
+        final offset = activeWrongMove.shakeOffset(nowMs);
+        final dangerLerp = activeWrongMove.dangerLerp(nowMs);
+        _threadPaint.color =
+            Color.lerp(tokens.thread, tokens.danger, dangerLerp)!;
+
+        final headNode = thread.head;
+        final headPoint = Offset(headNode.c * cellSize, headNode.r * cellSize);
+        final angle = _dirToAngle(thread.dir);
+
+        canvas.save();
+        canvas.translate(offset.dx, offset.dy);
+
+        canvas.drawPath(geom.basePath, _threadPaint);
+        drawChevronArrowhead(
+          canvas: canvas,
+          headPoint: headPoint,
+          angleRad: angle,
+          armLengthPx: armLength,
+          paint: _threadPaint,
+        );
+
+        canvas.restore();
       } else {
         // --- Idle, Blocked, or Entering thread ---
         final activeBlocked = animator.blockeds[tid];

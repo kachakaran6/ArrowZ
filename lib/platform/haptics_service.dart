@@ -10,6 +10,7 @@ abstract class HapticPlatformExecutor {
   const HapticPlatformExecutor();
   Future<void> lightImpact();
   Future<void> mediumImpact();
+  Future<void> heavyImpact() => mediumImpact();
   Future<void> selectionClick();
 }
 
@@ -22,6 +23,9 @@ class SystemHapticPlatformExecutor implements HapticPlatformExecutor {
 
   @override
   Future<void> mediumImpact() => HapticFeedback.mediumImpact();
+
+  @override
+  Future<void> heavyImpact() => HapticFeedback.heavyImpact();
 
   @override
   Future<void> selectionClick() => HapticFeedback.selectionClick();
@@ -61,7 +65,17 @@ class HapticsService {
     }
   }
 
-  /// Medium haptic feedback triggered immediately on a blocked arrow tap.
+  /// Strong haptic feedback triggered immediately on a blocked/wrong arrow tap.
+  Future<void> heavy() async {
+    if (!isEnabled) return;
+    try {
+      await _executor.heavyImpact();
+    } catch (e) {
+      debugPrint('HapticsService.heavy failed: $e');
+    }
+  }
+
+  /// Medium haptic feedback triggered on restrained interactions.
   Future<void> medium() async {
     if (!isEnabled) return;
     try {

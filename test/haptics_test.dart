@@ -27,6 +27,7 @@ class SpyHapticPlatformExecutor implements HapticPlatformExecutor {
 
   int get lightCount => eventLog.where((e) => e == 'light').length;
   int get mediumCount => eventLog.where((e) => e == 'medium').length;
+  int get heavyCount => eventLog.where((e) => e == 'heavy').length;
   int get selectionCount => eventLog.where((e) => e == 'selection').length;
 
   @override
@@ -49,6 +50,17 @@ class SpyHapticPlatformExecutor implements HapticPlatformExecutor {
       );
     }
     eventLog.add('medium');
+  }
+
+  @override
+  Future<void> heavyImpact() async {
+    if (throwOnCall) {
+      throw PlatformException(
+        code: 'VIBRATE_UNAVAILABLE',
+        message: 'Device haptic hardware unavailable or busy',
+      );
+    }
+    eventLog.add('heavy');
   }
 
   @override
@@ -143,17 +155,18 @@ void main() {
     });
 
     test(
-        '2. A blocked arrow tap requests medium feedback without waiting for an animation',
+        '2. A blocked arrow tap requests strong error feedback without waiting for an animation',
         () {
       final controller = createController();
-      expect(spyExecutor.mediumCount, equals(0));
+      expect(spyExecutor.heavyCount + spyExecutor.mediumCount, equals(0));
 
       // Tap blocked arrow 1 (blocked by arrow 2)
       controller.handleThreadTap(1, 24.0);
 
       // Feedback should occur immediately upon blocked tap detection
-      expect(spyExecutor.mediumCount, equals(1));
-      expect(spyExecutor.eventLog.first, equals('medium'));
+      expect(spyExecutor.heavyCount + spyExecutor.mediumCount, equals(1));
+      expect(
+          spyExecutor.eventLog.first, anyOf(equals('heavy'), equals('medium')));
       expect(controller.state.mistakes, equals(1));
     });
 
@@ -173,7 +186,7 @@ void main() {
       // Tap thread 2 to exit and trigger level completion
       controller.handleThreadTap(2, 24.0);
       expect(spyExecutor.lightCount, equals(1));
-      expect(spyExecutor.mediumCount, equals(0));
+      expect(spyExecutor.heavyCount + spyExecutor.mediumCount, equals(0));
 
       final logBeforeCompletion = List<String>.from(spyExecutor.eventLog);
 
@@ -193,12 +206,12 @@ void main() {
 
       // Tap blocked arrow 1 first (arrow 2 is still on board blocking it)
       controller.handleThreadTap(1, 24.0);
-      expect(spyExecutor.mediumCount, equals(1));
+      expect(spyExecutor.heavyCount + spyExecutor.mediumCount, equals(1));
 
       // Immediate successive tap on the same blocked arrow within 250ms debounce window
       controller.handleThreadTap(1, 24.0);
       controller.handleThreadTap(1, 24.0);
-      expect(spyExecutor.mediumCount, equals(1));
+      expect(spyExecutor.heavyCount + spyExecutor.mediumCount, equals(1));
 
       // Tap free arrow 2
       controller.handleThreadTap(2, 24.0);
@@ -226,7 +239,7 @@ void main() {
 
       // Blocked tap
       controller.handleThreadTap(1, 24.0);
-      expect(spyExecutor.mediumCount, equals(0));
+      expect(spyExecutor.heavyCount + spyExecutor.mediumCount, equals(0));
 
       // Valid tap
       controller.handleThreadTap(2, 24.0);
