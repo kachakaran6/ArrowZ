@@ -38,6 +38,9 @@ class GameState {
   /// Remaining mistakes out of 3 allowed.
   int get remainingMistakes => (3 - mistakes).clamp(0, 3);
 
+  /// Remaining lives out of 3 maximum lives.
+  int get remainingLives => remainingMistakes;
+
   /// Number of cleared threads.
   int get clearedCount => level.threads.length - activeIds.length;
 
