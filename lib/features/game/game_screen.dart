@@ -9,6 +9,7 @@ import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/board_view.dart';
 import 'package:arrowtapout/features/game/game_controller.dart';
 import 'package:arrowtapout/features/game/game_state.dart';
+import 'package:arrowtapout/features/game/heart_life_indicator.dart';
 import 'package:arrowtapout/features/game/sheets/complete_sheet.dart';
 import 'package:arrowtapout/features/game/sheets/failed_sheet.dart';
 import 'package:arrowtapout/features/game/sheets/howto_sheet.dart';
@@ -435,27 +436,10 @@ class _GameScreenState extends ConsumerState<GameScreen>
                         ],
                       ),
 
-                      // Centre: Mistake dots (3 dots, 8dp, 10dp gap)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (var i = 0; i < 3; i++) ...[
-                            if (i > 0)
-                              const SizedBox(
-                                width: ComponentTokens.mistakeDotGap,
-                              ),
-                            Container(
-                              width: ComponentTokens.mistakeDotSize,
-                              height: ComponentTokens.mistakeDotSize,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: i < (3 - gameState.mistakes)
-                                    ? tokens.ink
-                                    : tokens.threadFaint,
-                              ),
-                            ),
-                          ],
-                        ],
+                      // Centre: Heart life indicator (3 lives: red = active, white = lost)
+                      HeartLifeIndicator(
+                        remainingLives: gameState.remainingLives,
+                        reduceMotion: reduceMotion,
                       ),
 
                       // Right: Remaining counter ("12" / "of 12")

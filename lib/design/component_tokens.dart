@@ -9,6 +9,8 @@ abstract final class ComponentTokens {
   static const double minTapTargetSize = 48.0;
   static const double mistakeDotSize = 8.0;
   static const double mistakeDotGap = 10.0;
+  static const double heartSize = 20.0;
+  static const double heartGap = 6.0;
 
   /// Computes the thread stroke width for a given [cellSize] in logical pixels.
   static double threadStroke(double cellSize) {
