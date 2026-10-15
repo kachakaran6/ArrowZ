@@ -63,16 +63,24 @@ class ThreadGeometry {
 class ActiveExit {
   ActiveExit({
     required this.threadId,
-    required this.geometry,
+    required ThreadGeometry geometry,
     required this.startTimeMs,
     required this.reduceMotion,
-  }) : durationMs = reduceMotion ? 180.0 : geometry.track.durationMs;
+  })  : _geometry = geometry,
+        durationMs = reduceMotion ? 180.0 : geometry.track.durationMs;
 
   final int threadId;
-  final ThreadGeometry geometry;
-  final double durationMs;
+  ThreadGeometry _geometry;
+  ThreadGeometry get geometry => _geometry;
+  double durationMs;
   final double startTimeMs;
   final bool reduceMotion;
+
+  /// Updates the underlying geometry while preserving elapsed animation progress.
+  void updateGeometry(ThreadGeometry newGeometry) {
+    _geometry = newGeometry;
+    durationMs = reduceMotion ? 180.0 : newGeometry.track.durationMs;
+  }
 
   double progress(double nowMs) {
     if (durationMs <= 0) return 1.0;
@@ -84,7 +92,7 @@ class ActiveExit {
     if (p > 0.0) {
       Diagnostics.instance.recordFirstMotion(threadId);
     }
-    return geometry.track.sample(p, reduceMotion: reduceMotion);
+    return _geometry.track.sample(p, reduceMotion: reduceMotion);
   }
 
   bool isDone(double nowMs) => progress(nowMs) >= 1.0;
@@ -213,6 +221,28 @@ class BoardAnimator extends ChangeNotifier {
   late final Ticker _ticker;
   final Stopwatch _stopwatch = Stopwatch();
 
+  Level? _currentLevel;
+  double _currentCellSize = 0.0;
+
+  Level? get currentLevel => _currentLevel;
+  double get currentCellSize => _currentCellSize;
+
+  bool get hasActiveExits => exits.isNotEmpty;
+  int get activeExitCount => exits.length;
+
+  /// Callback fired when an exit animation finishes naturally along its track.
+  void Function(int threadId)? onExitCompleted;
+
+  /// Callback fired when all active in-flight exit animations have completed.
+  ui.VoidCallback? onAllExitsCompleted;
+
+  // Reusable scratch buffers to eliminate allocations during tight 60/120 Hz ticker loops
+  final List<int> _scratchCompletedExits = [];
+  final List<int> _scratchCompletedWrongMoves = [];
+  final List<int> _scratchCompletedBlockeds = [];
+  final List<int> _scratchStuckExits = [];
+  final List<int> _scratchStuckBlockeds = [];
+
   final Map<int, ThreadGeometry> geometries = {};
   final Map<int, ActiveExit> exits = {};
   final Map<int, ActiveBlocked> blockeds = {};
@@ -224,7 +254,22 @@ class BoardAnimator extends ChangeNotifier {
   double? enterStartTimeMs;
   double enterTotalMs = 0.0;
 
-  double get nowMs => _stopwatch.elapsedMicroseconds / 1000.0;
+  double? _testClockMs;
+
+  double get nowMs => _testClockMs ?? (_stopwatch.elapsedMicroseconds / 1000.0);
+
+  /// Sets a deterministic clock for automated testing.
+  @visibleForTesting
+  void setTestClockMs(double ms) {
+    _testClockMs = ms;
+  }
+
+  /// Advances the test clock by [deltaMs] and evaluates a tick.
+  @visibleForTesting
+  void stepTimeMs(double deltaMs) {
+    _testClockMs = nowMs + deltaMs;
+    _handleTick(Duration(microseconds: (_testClockMs! * 1000).round()));
+  }
 
   bool get hasActiveAnimations =>
       exits.isNotEmpty ||
@@ -234,6 +279,8 @@ class BoardAnimator extends ChangeNotifier {
       (enterStartTimeMs != null && (nowMs - enterStartTimeMs!) < enterTotalMs);
 
   void setLevel(Level level, double cellSize) {
+    _currentLevel = level;
+    _currentCellSize = cellSize;
     geometries.clear();
     exits.clear();
     blockeds.clear();
@@ -250,6 +297,36 @@ class BoardAnimator extends ChangeNotifier {
         cols: level.cols,
       );
     }
+  }
+
+  /// Updates cell size across the active board (e.g. on orientation change, window resize,
+  /// or system insets change) without wiping or interrupting active exit animations.
+  void updateCellSize(double newCellSize) {
+    if (_currentLevel == null ||
+        newCellSize <= 0 ||
+        (_currentCellSize - newCellSize).abs() < 1e-4) {
+      return;
+    }
+    _currentCellSize = newCellSize;
+    final level = _currentLevel!;
+
+    for (final t in level.threads) {
+      final newGeom = ThreadGeometry(
+        thread: t,
+        cellSize: newCellSize,
+        rows: level.rows,
+        cols: level.cols,
+      );
+      geometries[t.id] = newGeom;
+
+      // Update in-flight active exit tracks with recalculated metric while preserving normalized progress
+      final activeExit = exits[t.id];
+      if (activeExit != null) {
+        activeExit.updateGeometry(newGeom);
+      }
+    }
+
+    notifyListeners();
   }
 
   void startEntrance(int threadCount, {required bool reduceMotion}) {
@@ -374,35 +451,40 @@ class BoardAnimator extends ChangeNotifier {
     final currentMs = nowMs;
 
     // Prune finished exits
-    final completedExits = <int>[];
+    _scratchCompletedExits.clear();
     for (final exit in exits.values) {
       if (exit.isDone(currentMs)) {
-        completedExits.add(exit.threadId);
+        _scratchCompletedExits.add(exit.threadId);
       }
     }
-    for (final id in completedExits) {
+    final hadExits = exits.isNotEmpty;
+    for (final id in _scratchCompletedExits) {
       exits.remove(id);
+      onExitCompleted?.call(id);
+    }
+    if (hadExits && exits.isEmpty) {
+      onAllExitsCompleted?.call();
     }
 
     // Prune finished wrong move animations
-    final completedWrongMoves = <int>[];
+    _scratchCompletedWrongMoves.clear();
     for (final wm in wrongMoves.values) {
       if (wm.isDone(currentMs)) {
-        completedWrongMoves.add(wm.threadId);
+        _scratchCompletedWrongMoves.add(wm.threadId);
       }
     }
-    for (final id in completedWrongMoves) {
+    for (final id in _scratchCompletedWrongMoves) {
       wrongMoves.remove(id);
     }
 
     // Prune finished blocked bounces
-    final completedBlockeds = <int>[];
+    _scratchCompletedBlockeds.clear();
     for (final b in blockeds.values) {
       if (b.isDone(currentMs)) {
-        completedBlockeds.add(b.threadId);
+        _scratchCompletedBlockeds.add(b.threadId);
       }
     }
-    for (final id in completedBlockeds) {
+    for (final id in _scratchCompletedBlockeds) {
       blockeds.remove(id);
     }
 
@@ -414,7 +496,7 @@ class BoardAnimator extends ChangeNotifier {
 
     // Stuck detector: any animation running longer than T + 250ms raises a logged error
     double oldestAge = 0.0;
-    final stuckExits = <int>[];
+    _scratchStuckExits.clear();
     for (final exit in exits.values) {
       final age = currentMs - exit.startTimeMs;
       if (age > oldestAge) oldestAge = age;
@@ -426,14 +508,19 @@ class BoardAnimator extends ChangeNotifier {
           ageMs: age,
           maxAllowedMs: maxAllowed,
         );
-        stuckExits.add(exit.threadId);
+        _scratchStuckExits.add(exit.threadId);
       }
     }
-    for (final id in stuckExits) {
+    final hadStuckExits = _scratchStuckExits.isNotEmpty;
+    for (final id in _scratchStuckExits) {
       exits.remove(id);
+      onExitCompleted?.call(id);
+    }
+    if (hadStuckExits && exits.isEmpty) {
+      onAllExitsCompleted?.call();
     }
 
-    final stuckBlockeds = <int>[];
+    _scratchStuckBlockeds.clear();
     for (final b in blockeds.values) {
       final age = currentMs - b.startTimeMs;
       if (age > oldestAge) oldestAge = age;
@@ -445,10 +532,10 @@ class BoardAnimator extends ChangeNotifier {
           ageMs: age,
           maxAllowedMs: maxAllowed,
         );
-        stuckBlockeds.add(b.threadId);
+        _scratchStuckBlockeds.add(b.threadId);
       }
     }
-    for (final id in stuckBlockeds) {
+    for (final id in _scratchStuckBlockeds) {
       blockeds.remove(id);
     }
 

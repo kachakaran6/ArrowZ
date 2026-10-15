@@ -297,15 +297,16 @@ class BoardPainter extends CustomPainter {
         }
       } else {
         final activeWrongMove = animator.wrongMoves[tid];
-        if (activeWrongMove != null) {
-          final offset = activeWrongMove.shakeOffset(nowMs);
-          canvas.translate(offset.dx, offset.dy);
-        } else {
-          final activeBlocked = animator.blockeds[tid];
-          if (activeBlocked != null) {
-            final dispPx = activeBlocked.displacementPx(nowMs);
-            canvas.translate(thread.dir.dx * dispPx, thread.dir.dy * dispPx);
-          }
+        final activeBlocked = animator.blockeds[tid];
+        final shakeOffset =
+            activeWrongMove?.shakeOffset(nowMs) ?? ui.Offset.zero;
+        final dispPx = activeBlocked?.displacementPx(nowMs) ?? 0.0;
+
+        if (shakeOffset != ui.Offset.zero || dispPx != 0.0) {
+          canvas.translate(
+            thread.dir.dx * dispPx + shakeOffset.dx,
+            thread.dir.dy * dispPx + shakeOffset.dy,
+          );
         }
         _shadowPaint.color = tokens.ink.withValues(alpha: 0.12);
         canvas.drawPath(geom.basePath, _shadowPaint);
@@ -341,15 +342,25 @@ class BoardPainter extends CustomPainter {
           armLengthPx: armLength,
           paint: _threadPaint,
         );
-      } else if (activeWrongMove != null) {
-        // --- Wrong Move Feedback: Controlled Shake & Red Highlight ---
-        final offset = activeWrongMove.shakeOffset(nowMs);
-        final dangerLerp = activeWrongMove.dangerLerp(nowMs);
+      } else if (activeWrongMove != null ||
+          animator.blockeds.containsKey(tid)) {
+        // --- Unified Blocked Move Feedback: Physical Nudge, Shake & Warning ---
+        final activeBlocked = animator.blockeds[tid];
+        final shakeOffset =
+            activeWrongMove?.shakeOffset(nowMs) ?? ui.Offset.zero;
+        final dispPx = activeBlocked?.displacementPx(nowMs) ?? 0.0;
+        final wrongDanger = activeWrongMove?.dangerLerp(nowMs) ?? 0.0;
+        final blockedDanger = activeBlocked?.tappedDangerLerp(nowMs) ?? 0.0;
+        final dangerLerp = math.max(wrongDanger, blockedDanger);
+
         _threadPaint.color =
             Color.lerp(tokens.thread, tokens.danger, dangerLerp)!;
 
         canvas.save();
-        canvas.translate(offset.dx, offset.dy);
+        canvas.translate(
+          thread.dir.dx * dispPx + shakeOffset.dx,
+          thread.dir.dy * dispPx + shakeOffset.dy,
+        );
 
         canvas.drawPath(geom.basePath, _threadPaint);
         _renderChevronArrowhead(
@@ -362,8 +373,7 @@ class BoardPainter extends CustomPainter {
 
         canvas.restore();
       } else {
-        // --- Idle, Blocked, or Entering thread ---
-        final activeBlocked = animator.blockeds[tid];
+        // --- Idle, Blocker-pulsed, or Entering thread ---
         var blockerPulseLerp = 0.0;
         for (final b in animator.blockeds.values) {
           if (b.blockerId == tid) {
@@ -371,20 +381,20 @@ class BoardPainter extends CustomPainter {
                 math.max(blockerPulseLerp, b.blockerPulseLerp(nowMs));
           }
         }
-
-        if (activeBlocked != null) {
-          // Blocked tapped thread: elastic spring bump
-          final dispPx = activeBlocked.displacementPx(nowMs);
-          final dangerLerp = activeBlocked.tappedDangerLerp(nowMs);
+        // Normal idle / blocker / entrance thread
+        if (blockerPulseLerp > 0.0) {
           _threadPaint.color =
-              Color.lerp(tokens.thread, tokens.danger, dangerLerp)!;
+              Color.lerp(tokens.thread, tokens.danger, blockerPulseLerp)!;
+        } else {
+          _threadPaint.color = tokens.thread;
+        }
 
-          canvas.save();
-          canvas.translate(
-            thread.dir.dx * dispPx,
-            thread.dir.dy * dispPx,
-          );
+        final entrance = animator.entranceProgressFor(
+          threadIndex,
+          reduceMotion: reduceMotion,
+        );
 
+        if (entrance >= 1.0) {
           canvas.drawPath(geom.basePath, _threadPaint);
           _renderChevronArrowhead(
             canvas: canvas,
@@ -393,44 +403,18 @@ class BoardPainter extends CustomPainter {
             armLengthPx: armLength,
             paint: _threadPaint,
           );
-
-          canvas.restore();
-        } else {
-          // Normal idle / blocker / entrance thread
-          if (blockerPulseLerp > 0.0) {
-            _threadPaint.color =
-                Color.lerp(tokens.thread, tokens.danger, blockerPulseLerp)!;
-          } else {
-            _threadPaint.color = tokens.thread;
-          }
-
-          final entrance = animator.entranceProgressFor(
-            threadIndex,
-            reduceMotion: reduceMotion,
+        } else if (entrance > 0.0) {
+          final alpha = entrance;
+          _threadPaint.color = _threadPaint.color
+              .withValues(alpha: _threadPaint.color.a * alpha);
+          canvas.drawPath(geom.basePath, _threadPaint);
+          _renderChevronArrowhead(
+            canvas: canvas,
+            headPoint: geom.headOffset,
+            angleRad: geom.headAngle,
+            armLengthPx: armLength,
+            paint: _threadPaint,
           );
-
-          if (entrance >= 1.0) {
-            canvas.drawPath(geom.basePath, _threadPaint);
-            _renderChevronArrowhead(
-              canvas: canvas,
-              headPoint: geom.headOffset,
-              angleRad: geom.headAngle,
-              armLengthPx: armLength,
-              paint: _threadPaint,
-            );
-          } else if (entrance > 0.0) {
-            final alpha = entrance;
-            _threadPaint.color = _threadPaint.color
-                .withValues(alpha: _threadPaint.color.a * alpha);
-            canvas.drawPath(geom.basePath, _threadPaint);
-            _renderChevronArrowhead(
-              canvas: canvas,
-              headPoint: geom.headOffset,
-              angleRad: geom.headAngle,
-              armLengthPx: armLength,
-              paint: _threadPaint,
-            );
-          }
         }
       }
 
