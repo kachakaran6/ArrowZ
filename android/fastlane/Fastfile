@@ -218,10 +218,10 @@ platform :android do
     git_version_backup(build_num, "Internal")
   end
 
-  desc "Build and upload AAB to Google Play Closed Testing track (default: Alpha-1) + Git version archive"
+  desc "Build and upload AAB to Google Play Closed Testing track (default: alpha) + Git version archive"
   lane :closed do |options|
     build_num = get_target_build_number(options)
-    track_name = options[:track] || "Alpha-1"
+    track_name = options[:track] || "alpha"
     aab_path = build_flutter_aab(build_num, options)
     key_file = resolve_json_key_file
 
@@ -283,9 +283,9 @@ platform :android do
     git_version_backup(build_num, "Production")
   end
 
-  desc "Promote existing Internal build to Closed Testing (Alpha-1) without rebuilding"
+  desc "Promote existing Internal build to Closed Testing (alpha) without rebuilding"
   lane :promote_to_closed do |options|
-    track_name = options[:track] || "Alpha-1"
+    track_name = options[:track] || "alpha"
     key_file = resolve_json_key_file
 
     upload_to_play_store(
