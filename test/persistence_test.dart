@@ -1,7 +1,6 @@
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/data/stats_and_snapshot_models.dart';
-import 'package:arrowtapout/design/themes.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -57,7 +56,8 @@ void main() {
 
     test('SettingsState round trip JSON serialization', () {
       const settings = SettingsState(
-        themeChoice: AppThemeMode.graphiteEmber,
+        themeId: 'ember',
+        lastGoodThemeId: 'ember',
         sound: false,
         haptics: true,
         reduceMotion: true,
@@ -66,7 +66,8 @@ void main() {
       final json = settings.toJson();
       final restored = SettingsState.fromJson(json);
 
-      expect(restored.themeChoice, equals(AppThemeMode.graphiteEmber));
+      expect(restored.themeId, equals('ember'));
+      expect(restored.lastGoodThemeId, equals('ember'));
       expect(restored.sound, isFalse);
       expect(restored.haptics, isTrue);
       expect(restored.reduceMotion, isTrue);

@@ -11,11 +11,13 @@ class PauseSheet extends ConsumerWidget {
     required this.onResume,
     required this.onRestart,
     required this.onLevels,
+    this.onQuit,
   });
 
   final VoidCallback onResume;
   final VoidCallback onRestart;
   final VoidCallback onLevels;
+  final VoidCallback? onQuit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,9 +65,10 @@ class PauseSheet extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(Primitives.radiusButton),
                 ),
               ),
-              child: Text('Resume',
-                  style:
-                      tokens.typography.label.copyWith(color: tokens.onAccent)),
+              child: Text(
+                'Resume',
+                style: tokens.typography.label.copyWith(color: tokens.onAccent),
+              ),
             ),
             const SizedBox(height: Primitives.space12),
             // Restart
@@ -103,6 +106,26 @@ class PauseSheet extends ConsumerWidget {
               ),
               child: Text('Levels', style: tokens.typography.label),
             ),
+            if (onQuit != null) ...[
+              const SizedBox(height: Primitives.space12),
+              // Quit to Home
+              OutlinedButton(
+                onPressed: () {
+                  haptics.selection();
+                  Navigator.of(context).pop();
+                  onQuit!();
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: tokens.inkMuted,
+                  side: BorderSide(color: tokens.threadFaint, width: 1.0),
+                  minimumSize: const Size.fromHeight(48.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(Primitives.radiusButton),
+                  ),
+                ),
+                child: Text('Quit to Home', style: tokens.typography.label),
+              ),
+            ],
             const SizedBox(height: Primitives.space20),
             Divider(color: tokens.threadFaint, height: 1.0),
             const SizedBox(height: Primitives.space12),

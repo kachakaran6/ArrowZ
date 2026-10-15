@@ -1,6 +1,5 @@
-import 'dart:async';
-
 import 'package:arrowtapout/app.dart';
+import 'package:arrowtapout/data/level_repository.dart';
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/platform/ad_service.dart';
 import 'package:arrowtapout/platform/audio_service.dart';
@@ -34,6 +33,9 @@ void main() async {
   final soundService = AudioService();
   await soundService.init();
 
+  final levelRepository = LevelRepository();
+  await levelRepository.init();
+
   final adService = GoogleMobileAdsRewardedAdService();
   unawaited(adService.initialize());
 
@@ -45,6 +47,7 @@ void main() async {
         audioServiceProvider.overrideWithValue(soundService),
         notificationServiceProvider.overrideWithValue(notificationService),
         rewardedAdServiceProvider.overrideWithValue(adService),
+        levelRepositoryProvider.overrideWithValue(levelRepository),
       ],
       child: const UnwindApp(),
     ),

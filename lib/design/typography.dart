@@ -22,6 +22,13 @@ final class AppTypography {
   final TextStyle caption;
 
   /// Creates typography scaled to the theme's [ink] and [inkMuted] colours.
+  factory AppTypography.standard({
+    required Color ink,
+    required Color inkMuted,
+  }) =>
+      AppTypography.create(ink: ink, inkMuted: inkMuted);
+
+  /// Creates typography scaled to the theme's [ink] and [inkMuted] colours.
   factory AppTypography.create({
     required Color ink,
     required Color inkMuted,
@@ -29,48 +36,59 @@ final class AppTypography {
     return AppTypography(
       display: TextStyle(
         fontFamily: Primitives.fontDisplay,
-        fontSize: 40.0,
-        height: 44.0 / 40.0,
-        fontWeight: FontWeight.w500,
+        fontSize: 44.0,
+        height: 48.0 / 44.0,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.5,
         color: ink,
+        fontVariations: const [FontVariation('wght', 800)],
         fontFeatures: const [FontFeature.tabularFigures()],
       ),
       title: TextStyle(
         fontFamily: Primitives.fontDisplay,
-        fontSize: 24.0,
-        height: 30.0 / 24.0,
-        fontWeight: FontWeight.w500,
+        fontSize: 28.0,
+        height: 32.0 / 28.0,
+        fontWeight: FontWeight.w700,
         color: ink,
+        fontVariations: const [FontVariation('wght', 700)],
         fontFeatures: const [FontFeature.tabularFigures()],
       ),
       heading: TextStyle(
-        fontFamily: Primitives.fontUi,
-        fontSize: 18.0,
-        height: 24.0 / 18.0,
+        fontFamily: Primitives.fontDisplay,
+        fontSize: 20.0,
+        height: 26.0 / 20.0,
         fontWeight: FontWeight.w700,
         color: ink,
+        fontVariations: const [FontVariation('wght', 700)],
+        fontFeatures: const [FontFeature.tabularFigures()],
       ),
       body: TextStyle(
         fontFamily: Primitives.fontUi,
-        fontSize: 15.0,
-        height: 22.0 / 15.0,
+        fontSize: 16.0,
+        height: 24.0 / 16.0,
         fontWeight: FontWeight.w500,
         color: ink,
+        fontVariations: const [FontVariation('wght', 500)],
+        fontFeatures: const [FontFeature.tabularFigures()],
       ),
       label: TextStyle(
         fontFamily: Primitives.fontUi,
-        fontSize: 13.0,
-        height: 16.0 / 13.0,
+        fontSize: 14.0,
+        height: 18.0 / 14.0,
         fontWeight: FontWeight.w700,
-        letterSpacing: 0.2,
+        letterSpacing: 0.3,
         color: ink,
+        fontVariations: const [FontVariation('wght', 700)],
+        fontFeatures: const [FontFeature.tabularFigures()],
       ),
       caption: TextStyle(
         fontFamily: Primitives.fontUi,
         fontSize: 12.0,
         height: 16.0 / 12.0,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w600,
         color: inkMuted,
+        fontVariations: const [FontVariation('wght', 600)],
+        fontFeatures: const [FontFeature.tabularFigures()],
       ),
     );
   }

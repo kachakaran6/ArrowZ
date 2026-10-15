@@ -1,4 +1,5 @@
 import 'package:arrowtapout/data/progress_repository.dart';
+import 'package:arrowtapout/features/achievements/achievements_screen.dart';
 import 'package:arrowtapout/features/dev/animation_lab_screen.dart';
 import 'package:arrowtapout/features/game/game_screen.dart';
 import 'package:arrowtapout/features/home/home_screen.dart';
@@ -105,6 +106,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           context: context,
           state: state,
           child: const StatsScreen(),
+        ),
+      ),
+      // Achievements
+      GoRoute(
+        path: Routes.achievements,
+        pageBuilder: (context, state) => buildFadeThroughPage(
+          context: context,
+          state: state,
+          child: const AchievementsScreen(),
         ),
       ),
       // Daily Streak

@@ -1,7 +1,6 @@
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/data/snapshot_repository.dart';
-import 'package:arrowtapout/design/themes.dart';
 import 'package:arrowtapout/engine/cell.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/engine/thread.dart';
@@ -229,7 +228,7 @@ void main() {
     test('5. Disabling haptics prevents game-triggered feedback', () {
       // Disable haptics in settings repository
       container.read(settingsProvider.notifier).state = const SettingsState(
-        themeChoice: AppThemeMode.sageLinen,
+        themeId: 'classic',
         sound: true,
         haptics: false,
         reduceMotion: false,

@@ -39,6 +39,17 @@ class LevelRepository {
     }
   }
 
+  Future<void> init() async {
+    await _ensureBinaryDecoder();
+  }
+
+  Level? getLevelSync(int id) {
+    if (_binaryDecoder != null && id >= 1 && id <= _binaryDecoder!.levelCount) {
+      return _binaryDecoder!.decodeLevelByNumber(id);
+    }
+    return null;
+  }
+
   /// Loads all 20 levels for a given [chapterNumber] (1..N).
   Future<List<Level>> loadChapter(int chapterNumber) async {
     if (_chapterCache.containsKey(chapterNumber)) {

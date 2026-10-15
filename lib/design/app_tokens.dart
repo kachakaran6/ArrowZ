@@ -8,6 +8,11 @@ import 'package:flutter/material.dart';
 @immutable
 class AppTokens extends ThemeExtension<AppTokens> {
   const AppTokens({
+    this.id = 'classic',
+    this.displayName = 'Classic Sage',
+    this.subtitle = 'Original',
+    this.mood = 'Soft organic parchment',
+    this.isDark = false,
     required this.bg,
     required this.surface,
     required this.surfaceRaised,
@@ -16,8 +21,10 @@ class AppTokens extends ThemeExtension<AppTokens> {
     required this.inkFaint,
     required this.thread,
     required this.threadFaint,
+    required this.line,
     required this.accent,
     required this.onAccent,
+    required this.accentGlow,
     required this.danger,
     required this.success,
     required this.scrim,
@@ -28,6 +35,12 @@ class AppTokens extends ThemeExtension<AppTokens> {
     required this.typography,
   });
 
+  final String id;
+  final String displayName;
+  final String subtitle;
+  final String mood;
+  final bool isDark;
+
   // Color roles
   final Color bg;
   final Color surface;
@@ -37,8 +50,10 @@ class AppTokens extends ThemeExtension<AppTokens> {
   final Color inkFaint;
   final Color thread;
   final Color threadFaint;
+  final Color line;
   final Color accent;
   final Color onAccent;
+  final Color accentGlow;
   final Color danger;
   final Color success;
   final Color scrim;
@@ -61,6 +76,11 @@ class AppTokens extends ThemeExtension<AppTokens> {
   static const double space40 = Primitives.space40;
   static const double space56 = Primitives.space56;
 
+  static const double radius10 = Primitives.radius10;
+  static const double radius16 = Primitives.radius16;
+  static const double radius24 = Primitives.radius24;
+  static const double radius28 = Primitives.radius28;
+
   static const double radiusChip = Primitives.radiusChip;
   static const double radiusButton = Primitives.radiusButton;
   static const double radiusCard = Primitives.radiusCard;
@@ -80,6 +100,11 @@ class AppTokens extends ThemeExtension<AppTokens> {
 
   @override
   AppTokens copyWith({
+    String? id,
+    String? displayName,
+    String? subtitle,
+    String? mood,
+    bool? isDark,
     Color? bg,
     Color? surface,
     Color? surfaceRaised,
@@ -88,8 +113,10 @@ class AppTokens extends ThemeExtension<AppTokens> {
     Color? inkFaint,
     Color? thread,
     Color? threadFaint,
+    Color? line,
     Color? accent,
     Color? onAccent,
+    Color? accentGlow,
     Color? danger,
     Color? success,
     Color? scrim,
@@ -100,6 +127,11 @@ class AppTokens extends ThemeExtension<AppTokens> {
     AppTypography? typography,
   }) {
     return AppTokens(
+      id: id ?? this.id,
+      displayName: displayName ?? this.displayName,
+      subtitle: subtitle ?? this.subtitle,
+      mood: mood ?? this.mood,
+      isDark: isDark ?? this.isDark,
       bg: bg ?? this.bg,
       surface: surface ?? this.surface,
       surfaceRaised: surfaceRaised ?? this.surfaceRaised,
@@ -108,8 +140,10 @@ class AppTokens extends ThemeExtension<AppTokens> {
       inkFaint: inkFaint ?? this.inkFaint,
       thread: thread ?? this.thread,
       threadFaint: threadFaint ?? this.threadFaint,
+      line: line ?? this.line,
       accent: accent ?? this.accent,
       onAccent: onAccent ?? this.onAccent,
+      accentGlow: accentGlow ?? this.accentGlow,
       danger: danger ?? this.danger,
       success: success ?? this.success,
       scrim: scrim ?? this.scrim,
@@ -125,6 +159,11 @@ class AppTokens extends ThemeExtension<AppTokens> {
   AppTokens lerp(ThemeExtension<AppTokens>? other, double t) {
     if (other is! AppTokens) return this;
     return AppTokens(
+      id: t < 0.5 ? id : other.id,
+      displayName: t < 0.5 ? displayName : other.displayName,
+      subtitle: t < 0.5 ? subtitle : other.subtitle,
+      mood: t < 0.5 ? mood : other.mood,
+      isDark: t < 0.5 ? isDark : other.isDark,
       bg: Color.lerp(bg, other.bg, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
       surfaceRaised: Color.lerp(surfaceRaised, other.surfaceRaised, t)!,
@@ -133,8 +172,10 @@ class AppTokens extends ThemeExtension<AppTokens> {
       inkFaint: Color.lerp(inkFaint, other.inkFaint, t)!,
       thread: Color.lerp(thread, other.thread, t)!,
       threadFaint: Color.lerp(threadFaint, other.threadFaint, t)!,
+      line: Color.lerp(line, other.line, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
       onAccent: Color.lerp(onAccent, other.onAccent, t)!,
+      accentGlow: Color.lerp(accentGlow, other.accentGlow, t)!,
       danger: Color.lerp(danger, other.danger, t)!,
       success: Color.lerp(success, other.success, t)!,
       scrim: Color.lerp(scrim, other.scrim, t)!,

@@ -19,6 +19,8 @@ class ProgressState {
   final GameStats stats;
   final bool coachMarkShown;
 
+  int get totalStars => stars.values.fold(0, (sum, val) => sum + val);
+
   ProgressState copyWith({
     int? highestUnlocked,
     Map<int, int>? stars,

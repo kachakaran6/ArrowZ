@@ -115,11 +115,20 @@ class GameController extends StateNotifier<GameState> {
     final canExit = _boardState.canExit(threadId);
 
     if (canExit) {
-      // 1. Immediate tactile feedback at the interaction boundary.
-      // Must not wait for exit animations, audio, or snapshot writes.
-      haptics.light();
+      final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
+      final isChain =
+          (nowMs - state.lastPullTimeMs) <= 2500.0 && state.lastPullTimeMs > 0;
+      final newChain = isChain ? state.chainCount + 1 : 1;
+      final newBestChain = math.max(state.bestChain, newChain);
 
-      // 2. Sound effect.
+      // Light haptic ramps with chain progression
+      if (newChain >= 5) {
+        haptics.medium();
+      } else {
+        haptics.light();
+      }
+
+      // Sound effect
       audio.playPull();
 
       // 3. Update board state & begin path-aware extraction.
@@ -130,6 +139,9 @@ class GameController extends StateNotifier<GameState> {
       state = state.copyWith(
         activeIds: newActive,
         moves: state.moves + 1,
+        chainCount: newChain,
+        bestChain: newBestChain,
+        lastPullTimeMs: nowMs,
       );
 
       _saveSnapshotDebounced();
@@ -172,6 +184,7 @@ class GameController extends StateNotifier<GameState> {
         status: isFailed ? GameStatus.failed : GameStatus.playing,
         lastBlockedTapTimeMs: nowMs,
         lastBlockedThreadId: threadId,
+        chainCount: 0, // Blocked tap breaks chain!
       );
 
       if (isFailed) {

@@ -3,6 +3,7 @@ import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
+import 'package:arrowtapout/router/nav_utils.dart';
 import 'package:arrowtapout/router/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -136,7 +137,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           tooltip: 'Back',
           onPressed: () {
             haptics.selection();
-            context.pop();
+            context.safeBack(fallbackRoute: Routes.home);
           },
         ),
       ),
@@ -154,21 +155,59 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(Primitives.radiusCard),
-                side: BorderSide(color: tokens.threadFaint, width: 1.0),
+                side: BorderSide(color: tokens.line, width: 1.0),
               ),
-              child: ListTile(
-                title: Text('Theme', style: tokens.typography.body),
-                subtitle: Text(
-                  settings.themeChoice.label,
-                  style:
-                      tokens.typography.caption.copyWith(color: tokens.accent),
-                ),
-                trailing:
-                    Icon(Icons.chevron_right_rounded, color: tokens.inkMuted),
-                onTap: () {
-                  haptics.selection();
-                  context.push(Routes.theme);
-                },
+              child: Column(
+                children: [
+                  ListTile(
+                    title: Text('Theme', style: tokens.typography.body),
+                    subtitle: Text(
+                      tokens.displayName,
+                      style: tokens.typography.caption.copyWith(color: tokens.accent),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 18.0,
+                          height: 18.0,
+                          decoration: BoxDecoration(
+                            color: tokens.accent,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: tokens.line, width: 1.0),
+                          ),
+                        ),
+                        const SizedBox(width: 8.0),
+                        Icon(Icons.chevron_right_rounded, color: tokens.inkMuted),
+                      ],
+                    ),
+                    onTap: () {
+                      haptics.selection();
+                      context.push(Routes.theme);
+                    },
+                  ),
+                  Divider(color: tokens.line, height: 1.0),
+                  ListTile(
+                    title: Text('Reset to Classic Sage', style: tokens.typography.body),
+                    subtitle: Text(
+                      'Revert to the original sage linen appearance',
+                      style: tokens.typography.caption.copyWith(color: tokens.inkMuted),
+                    ),
+                    trailing: Icon(Icons.restore_rounded, color: tokens.inkMuted),
+                    onTap: () {
+                      haptics.selection();
+                      ref.read(settingsProvider.notifier).resetToClassicSage();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Theme reset to Classic Sage',
+                              style: tokens.typography.caption),
+                          duration: const Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
 
@@ -181,7 +220,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(Primitives.radiusCard),
-                side: BorderSide(color: tokens.threadFaint, width: 1.0),
+                side: BorderSide(color: tokens.line, width: 1.0),
               ),
               child: Column(
                 children: [
@@ -197,7 +236,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                   ),
                   Divider(
-                      color: tokens.threadFaint,
+                      color: tokens.line,
                       height: 1.0,
                       indent: 16.0,
                       endIndent: 16.0),
@@ -213,7 +252,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                   ),
                   Divider(
-                      color: tokens.threadFaint,
+                      color: tokens.line,
                       height: 1.0,
                       indent: 16.0,
                       endIndent: 16.0),
@@ -235,6 +274,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             const SizedBox(height: Primitives.space24),
 
+            // Section: Game
+            _SectionHeader(title: 'Game', tokens: tokens),
+            Card(
+              color: tokens.surface,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(Primitives.radiusCard),
+                side: BorderSide(color: tokens.line, width: 1.0),
+              ),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    title: Text('Show chain counter', style: tokens.typography.body),
+                    subtitle: Text('Displays flow combos during consecutive pulls',
+                        style: tokens.typography.caption),
+                    value: settings.showChainCounter,
+                    activeTrackColor: tokens.accent,
+                    onChanged: (val) {
+                      haptics.selection();
+                      settingsNotifier.setShowChainCounter(val);
+                    },
+                  ),
+                  Divider(
+                      color: tokens.line,
+                      height: 1.0,
+                      indent: 16.0,
+                      endIndent: 16.0),
+                  SwitchListTile(
+                    title: Text('Idle hint nudge', style: tokens.typography.body),
+                    subtitle: Text('Gently pulses hint button after 30s of inactivity',
+                        style: tokens.typography.caption),
+                    value: settings.idleHintNudge,
+                    activeTrackColor: tokens.accent,
+                    onChanged: (val) {
+                      haptics.selection();
+                      settingsNotifier.setIdleHintNudge(val);
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: Primitives.space24),
+
             // Section: Help
             _SectionHeader(title: 'Help', tokens: tokens),
             Card(
@@ -242,7 +325,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(Primitives.radiusCard),
-                side: BorderSide(color: tokens.threadFaint, width: 1.0),
+                side: BorderSide(color: tokens.line, width: 1.0),
               ),
               child: ListTile(
                 title: Text('How to play', style: tokens.typography.body),
@@ -266,16 +349,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(Primitives.radiusCard),
-                side: BorderSide(color: tokens.threadFaint, width: 1.0),
+                side: BorderSide(color: tokens.line, width: 1.0),
               ),
               child: Column(
                 children: [
                   ListTile(
                     title: Text('Version', style: tokens.typography.body),
-                    trailing: Text(_version, style: tokens.typography.caption),
+                    subtitle: Text(_version, style: tokens.typography.caption),
                   ),
                   Divider(
-                      color: tokens.threadFaint,
+                      color: tokens.line,
                       height: 1.0,
                       indent: 16.0,
                       endIndent: 16.0),
@@ -293,14 +376,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                   ),
                   Divider(
-                      color: tokens.threadFaint,
+                      color: tokens.line,
                       height: 1.0,
                       indent: 16.0,
                       endIndent: 16.0),
                   Padding(
                     padding: const EdgeInsets.all(Primitives.space16),
                     child: Text(
-                      'Nothing is collected. The game works fully offline.',
+                      'Nothing is collected. ArrowZ works fully offline.',
                       style: tokens.typography.caption
                           .copyWith(color: tokens.inkMuted),
                     ),

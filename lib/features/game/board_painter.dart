@@ -80,13 +80,15 @@ void drawChevronArrowhead({
 class BoardPainter extends CustomPainter {
   BoardPainter({
     required this.level,
-    this.activeIds = const {},
+    Set<int>? activeIds,
+    Set<int>? activeThreadIds,
     this.getActiveIds,
     required this.cellSize,
     required this.tokens,
     required this.animator,
-    required this.reduceMotion,
-  })  : _maskAdjacentNodes = _computeMaskNodes(level),
+    this.reduceMotion = false,
+  })  : activeIds = activeIds ?? activeThreadIds ?? const {},
+        _maskAdjacentNodes = _computeMaskNodes(level),
         super(repaint: animator);
 
   final Level level;
@@ -166,7 +168,8 @@ class BoardPainter extends CustomPainter {
     required ui.Offset headPoint,
     required double angleRad,
     required double armLengthPx,
-    required ui.Paint paint,
+    required Color color,
+    required double strokeWidth,
     ui.Paint? shadowPaint,
   }) {
     final noseDist = armLengthPx * 0.45;
@@ -208,11 +211,11 @@ class BoardPainter extends CustomPainter {
       canvas.restore();
     }
 
-    _arrowFillPaint.color = paint.color;
+    _arrowFillPaint.color = color;
     canvas.drawPath(_arrowPath, _arrowFillPaint);
 
-    _arrowStrokePaint.color = paint.color;
-    _arrowStrokePaint.strokeWidth = math.max(1.5, paint.strokeWidth * 0.35);
+    _arrowStrokePaint.color = color;
+    _arrowStrokePaint.strokeWidth = math.max(1.5, strokeWidth * 0.35);
     canvas.drawPath(_arrowPath, _arrowStrokePaint);
   }
 
@@ -335,12 +338,16 @@ class BoardPainter extends CustomPainter {
             tokens.thread.withValues(alpha: tokens.thread.a * extracted.alpha);
 
         canvas.drawPath(extracted.visiblePath, _threadPaint);
+        final chevronColor = tokens.isDark
+            ? tokens.accent.withValues(alpha: tokens.accent.a * extracted.alpha)
+            : _threadPaint.color;
         _renderChevronArrowhead(
           canvas: canvas,
           headPoint: extracted.headPosition,
           angleRad: extracted.headAngleRad,
           armLengthPx: armLength,
-          paint: _threadPaint,
+          color: chevronColor,
+          strokeWidth: strokeWidth,
         );
       } else if (activeWrongMove != null ||
           animator.blockeds.containsKey(tid)) {
@@ -363,12 +370,17 @@ class BoardPainter extends CustomPainter {
         );
 
         canvas.drawPath(geom.basePath, _threadPaint);
+
+        final chevronColor = tokens.isDark
+            ? Color.lerp(tokens.accent, tokens.danger, dangerLerp)!
+            : _threadPaint.color;
         _renderChevronArrowhead(
           canvas: canvas,
           headPoint: geom.headOffset,
           angleRad: geom.headAngle,
           armLengthPx: armLength,
-          paint: _threadPaint,
+          color: chevronColor,
+          strokeWidth: strokeWidth,
         );
 
         canvas.restore();
@@ -389,6 +401,11 @@ class BoardPainter extends CustomPainter {
           _threadPaint.color = tokens.thread;
         }
 
+        final chevronBase = blockerPulseLerp > 0.0
+            ? Color.lerp(tokens.accent, tokens.danger, blockerPulseLerp)!
+            : tokens.accent;
+        final chevronColor = tokens.isDark ? chevronBase : _threadPaint.color;
+
         final entrance = animator.entranceProgressFor(
           threadIndex,
           reduceMotion: reduceMotion,
@@ -401,7 +418,8 @@ class BoardPainter extends CustomPainter {
             headPoint: geom.headOffset,
             angleRad: geom.headAngle,
             armLengthPx: armLength,
-            paint: _threadPaint,
+            color: chevronColor,
+            strokeWidth: strokeWidth,
           );
         } else if (entrance > 0.0) {
           final alpha = entrance;
@@ -413,7 +431,8 @@ class BoardPainter extends CustomPainter {
             headPoint: geom.headOffset,
             angleRad: geom.headAngle,
             armLengthPx: armLength,
-            paint: _threadPaint,
+            color: chevronColor.withValues(alpha: chevronColor.a * alpha),
+            strokeWidth: strokeWidth,
           );
         }
       }

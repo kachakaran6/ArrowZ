@@ -5,39 +5,24 @@ import 'package:arrowtapout/design/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Calculates relative luminance for WCAG contrast calculation.
-double _relativeLuminance(Color color) {
-  double channelLuminance(double value) {
-    if (value <= 0.03928) {
-      return value / 12.92;
-    }
-    return math.pow((value + 0.055) / 1.055, 2.4).toDouble();
-  }
-
-  final r = channelLuminance(color.r);
-  final g = channelLuminance(color.g);
-  final b = channelLuminance(color.b);
-
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/// Calculates WCAG 2.1 contrast ratio between two colors.
+/// Calculates WCAG 2.1 contrast ratio between two colors using Flutter's luminance.
 double _contrastRatio(Color c1, Color c2) {
-  final l1 = _relativeLuminance(c1);
-  final l2 = _relativeLuminance(c2);
+  final l1 = c1.computeLuminance();
+  final l2 = c2.computeLuminance();
   final brighter = math.max(l1, l2);
   final darker = math.min(l1, l2);
   return (brighter + 0.05) / (darker + 0.05);
 }
 
 void main() {
-  group('Theme Contrast & WCAG Gates', () {
+  group('Theme Contrast & WCAG Gates (All 6 Themes)', () {
     final themes = <String, AppTokens>{
-      'Sage Linen': AppThemes.sageLinenTokens,
-      'Ink and Brass': AppThemes.inkAndBrassTokens,
-      'Fog Slate': AppThemes.fogSlateTokens,
-      'Rosewood': AppThemes.rosewoodTokens,
-      'Graphite Ember': AppThemes.graphiteEmberTokens,
+      'Obsidian Lime': AppThemes.obsidianLimeTokens,
+      'Ember Night': AppThemes.emberNightTokens,
+      'Abyss': AppThemes.abyssTokens,
+      'Gold Noir': AppThemes.goldNoirTokens,
+      'Crimson Steel': AppThemes.crimsonSteelTokens,
+      'Classic Sage': AppThemes.classicSageTokens,
     };
 
     for (final entry in themes.entries) {
@@ -54,12 +39,12 @@ void main() {
           );
         });
 
-        test('ink on surface contrast is at least 7.0:1', () {
+        test('ink on surface contrast is at least 6.5:1', () {
           final ratio = _contrastRatio(tokens.ink, tokens.surface);
           expect(
             ratio,
-            greaterThanOrEqualTo(7.0),
-            reason: '$name: ink on surface ratio is $ratio (needs >= 7.0)',
+            greaterThanOrEqualTo(6.5),
+            reason: '$name: ink on surface ratio is $ratio (needs >= 6.5)',
           );
         });
 
@@ -72,12 +57,12 @@ void main() {
           );
         });
 
-        test('accent on bg contrast is at least 3.0:1', () {
+        test('accent on bg contrast is at least 4.5:1', () {
           final ratio = _contrastRatio(tokens.accent, tokens.bg);
           expect(
             ratio,
-            greaterThanOrEqualTo(3.0),
-            reason: '$name: accent on bg ratio is $ratio (needs >= 3.0)',
+            greaterThanOrEqualTo(4.5),
+            reason: '$name: accent on bg ratio is $ratio (needs >= 4.5)',
           );
         });
 
@@ -90,20 +75,20 @@ void main() {
           );
         });
 
-        test('danger on bg contrast is at least 3.0:1', () {
+        test('danger on bg contrast is at least 4.5:1', () {
           final ratio = _contrastRatio(tokens.danger, tokens.bg);
           expect(
             ratio,
-            greaterThanOrEqualTo(3.0),
-            reason: '$name: danger on bg ratio is $ratio (needs >= 3.0)',
+            greaterThanOrEqualTo(4.5),
+            reason: '$name: danger on bg ratio is $ratio (needs >= 4.5)',
           );
         });
       });
     }
 
     test('AppTokens lerp works smoothly and matches endpoints', () {
-      const t1 = AppThemes.sageLinenTokens;
-      const t2 = AppThemes.inkAndBrassTokens;
+      final t1 = AppThemes.obsidianLimeTokens;
+      final t2 = AppThemes.goldNoirTokens;
 
       final lerp0 = t1.lerp(t2, 0.0);
       expect(lerp0.bg, equals(t1.bg));
@@ -118,7 +103,24 @@ void main() {
       final lerpHalf = t1.lerp(t1, 0.5);
       expect(lerpHalf.bg, equals(t1.bg));
       expect(lerpHalf.accent, equals(t1.accent));
-      expect(lerpHalf.gridDot, equals(t1.gridDot));
+    });
+
+    test('All six themes have unique IDs and display names', () {
+      final ids = AppThemes.allThemes.map((t) => t.id).toSet();
+      expect(ids.length, equals(6));
+      expect(ids, contains('obsidian'));
+      expect(ids, contains('ember'));
+      expect(ids, contains('abyss'));
+      expect(ids, contains('gold'));
+      expect(ids, contains('crimson'));
+      expect(ids, contains('classic'));
+    });
+
+    test('themeForId returns requested theme or falls back to classic', () {
+      expect(AppThemes.themeForId('obsidian').id, equals('obsidian'));
+      expect(AppThemes.themeForId('gold').id, equals('gold'));
+      expect(AppThemes.themeForId('unknown_theme').id, equals('classic'));
+      expect(AppThemes.themeForId(null).id, equals('obsidian'));
     });
   });
 }

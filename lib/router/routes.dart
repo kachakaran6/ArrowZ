@@ -6,6 +6,7 @@ abstract final class Routes {
   static const String settings = '/settings';
   static const String theme = '/settings/theme';
   static const String howToPlay = '/howto';
+  static const String achievements = '/achievements';
   static const String stats = '/stats';
   static const String streak = '/streak';
   static const String devLab = '/dev/lab';

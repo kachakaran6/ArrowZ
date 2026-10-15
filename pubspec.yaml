@@ -38,12 +38,12 @@ flutter:
     - assets/audio/
 
   fonts:
-    - family: Newsreader
+    - family: Bricolage Grotesque
       fonts:
-        - asset: assets/fonts/Newsreader.ttf
-    - family: Manrope
+        - asset: assets/fonts/BricolageGrotesque.ttf
+    - family: Figtree
       fonts:
-        - asset: assets/fonts/Manrope.ttf
+        - asset: assets/fonts/Figtree.ttf
 
 flutter_launcher_icons:
   android: true

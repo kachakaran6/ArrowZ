@@ -17,6 +17,9 @@ class GameState {
     this.hintedThreadId,
     this.lastBlockedTapTimeMs = 0.0,
     this.lastBlockedThreadId,
+    this.chainCount = 0,
+    this.bestChain = 0,
+    this.lastPullTimeMs = 0.0,
   });
 
   final Level level;
@@ -31,6 +34,9 @@ class GameState {
   final int? hintedThreadId;
   final double lastBlockedTapTimeMs;
   final int? lastBlockedThreadId;
+  final int chainCount;
+  final int bestChain;
+  final double lastPullTimeMs;
 
   /// Tutorial mode flag (all levels now track mistakes and lives).
   bool get isTutorial => false;
@@ -74,6 +80,9 @@ class GameState {
     int? hintedThreadId,
     double? lastBlockedTapTimeMs,
     int? lastBlockedThreadId,
+    int? chainCount,
+    int? bestChain,
+    double? lastPullTimeMs,
   }) {
     return GameState(
       level: level ?? this.level,
@@ -88,6 +97,9 @@ class GameState {
       hintedThreadId: hintedThreadId ?? this.hintedThreadId,
       lastBlockedTapTimeMs: lastBlockedTapTimeMs ?? this.lastBlockedTapTimeMs,
       lastBlockedThreadId: lastBlockedThreadId ?? this.lastBlockedThreadId,
+      chainCount: chainCount ?? this.chainCount,
+      bestChain: bestChain ?? this.bestChain,
+      lastPullTimeMs: lastPullTimeMs ?? this.lastPullTimeMs,
     );
   }
 }

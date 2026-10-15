@@ -35,7 +35,7 @@ class FailedSheet extends StatelessWidget {
           children: [
             Center(
               child: Text(
-                'Out of mistakes',
+                'Out of lives',
                 style: tokens.typography.title,
               ),
             ),

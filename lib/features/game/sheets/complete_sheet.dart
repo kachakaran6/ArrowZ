@@ -14,7 +14,9 @@ class CompleteSheet extends StatefulWidget {
     required this.stars,
     required this.threadsCleared,
     required this.mistakes,
+    this.bestChain = 0,
     required this.onNextLevel,
+    required this.onReplay,
     required this.onLevels,
   });
 
@@ -24,7 +26,9 @@ class CompleteSheet extends StatefulWidget {
   final int stars; // 1, 2, or 3
   final int threadsCleared;
   final int mistakes;
+  final int bestChain;
   final VoidCallback onNextLevel;
+  final VoidCallback onReplay;
   final VoidCallback onLevels;
 
   @override
@@ -57,7 +61,9 @@ class _CompleteSheetState extends State<CompleteSheet>
     final isFinalGameLevel = widget.levelId >= 200;
 
     String title;
-    if (isFinalGameLevel) {
+    if (widget.mistakes == 0) {
+      title = 'Clean sweep';
+    } else if (isFinalGameLevel) {
       title = 'Nothing left to unwind';
     } else if (widget.isChapterFinale) {
       title = '${widget.chapterName} complete';
@@ -65,9 +71,7 @@ class _CompleteSheetState extends State<CompleteSheet>
       title = 'Level complete';
     }
 
-    final statsText = widget.mistakes == 0
-        ? '${widget.threadsCleared} threads, zero mistakes'
-        : '${widget.threadsCleared} threads, ${widget.mistakes} mistake${widget.mistakes == 1 ? '' : 's'}';
+    final chapterLevelNum = ((widget.levelId - 1) % 20) + 1;
 
     return Container(
       decoration: BoxDecoration(
@@ -91,6 +95,13 @@ class _CompleteSheetState extends State<CompleteSheet>
                 title,
                 style: tokens.typography.title,
                 textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: Primitives.space8),
+            Center(
+              child: Text(
+                '${widget.chapterName} · $chapterLevelNum of 20',
+                style: tokens.typography.caption.copyWith(color: tokens.inkMuted),
               ),
             ),
             const SizedBox(height: Primitives.space20),
@@ -117,11 +128,44 @@ class _CompleteSheetState extends State<CompleteSheet>
                 );
               },
             ),
-            const SizedBox(height: Primitives.space16),
-            Center(
-              child: Text(
-                statsText,
-                style: tokens.typography.body.copyWith(color: tokens.inkMuted),
+            const SizedBox(height: Primitives.space20),
+            // Stats row (threads, mistakes, best chain)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+              decoration: BoxDecoration(
+                color: tokens.surfaceRaised,
+                borderRadius: BorderRadius.circular(AppTokens.radius16),
+                border: Border.all(color: tokens.line),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _StatColumn(
+                      label: 'Threads',
+                      value: '${widget.threadsCleared}',
+                      tokens: tokens,
+                    ),
+                  ),
+                  Container(width: 1, height: 28, color: tokens.line),
+                  Expanded(
+                    child: _StatColumn(
+                      label: 'Mistakes',
+                      value: '${widget.mistakes}',
+                      tokens: tokens,
+                    ),
+                  ),
+                  if (widget.bestChain > 1) ...[
+                    Container(width: 1, height: 28, color: tokens.line),
+                    Expanded(
+                      child: _StatColumn(
+                        label: 'Best Chain',
+                        value: 'x${widget.bestChain}',
+                        tokens: tokens,
+                        isAccent: true,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
             const SizedBox(height: Primitives.space24),
@@ -134,7 +178,7 @@ class _CompleteSheetState extends State<CompleteSheet>
                 style: FilledButton.styleFrom(
                   backgroundColor: tokens.accent,
                   foregroundColor: tokens.onAccent,
-                  minimumSize: const Size.fromHeight(48.0),
+                  minimumSize: const Size.fromHeight(52.0),
                   shape: RoundedRectangleBorder(
                     borderRadius:
                         BorderRadius.circular(Primitives.radiusButton),
@@ -146,20 +190,46 @@ class _CompleteSheetState extends State<CompleteSheet>
               ),
               const SizedBox(height: Primitives.space12),
             ],
-            OutlinedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                widget.onLevels();
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: tokens.ink,
-                side: BorderSide(color: tokens.threadFaint, width: 1.5),
-                minimumSize: const Size.fromHeight(48.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Primitives.radiusButton),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.onReplay();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tokens.ink,
+                      side: BorderSide(color: tokens.line),
+                      minimumSize: const Size.fromHeight(48.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(Primitives.radiusButton),
+                      ),
+                    ),
+                    child: Text('Replay', style: tokens.typography.label),
+                  ),
                 ),
-              ),
-              child: Text('Levels', style: tokens.typography.label),
+                const SizedBox(width: Primitives.space12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.onLevels();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tokens.ink,
+                      side: BorderSide(color: tokens.line),
+                      minimumSize: const Size.fromHeight(48.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(Primitives.radiusButton),
+                      ),
+                    ),
+                    child: Text('Levels', style: tokens.typography.label),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -250,4 +320,40 @@ class StarDrawPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant StarDrawPainter old) =>
       old.drawProgress != drawProgress || old.earned != earned;
+}
+
+class _StatColumn extends StatelessWidget {
+  const _StatColumn({
+    required this.label,
+    required this.value,
+    required this.tokens,
+    this.isAccent = false,
+  });
+
+  final String label;
+  final String value;
+  final AppTokens tokens;
+  final bool isAccent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: tokens.typography.heading.copyWith(
+            color: isAccent ? tokens.accent : tokens.ink,
+            fontWeight: FontWeight.w700,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: tokens.typography.caption.copyWith(color: tokens.inkMuted),
+        ),
+      ],
+    );
+  }
 }

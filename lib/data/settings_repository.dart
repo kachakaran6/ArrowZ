@@ -7,53 +7,81 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsState {
   const SettingsState({
-    this.themeChoice = AppThemeMode.followSystem,
+    this.themeId = AppThemes.defaultThemeId,
+    this.lastGoodThemeId = AppThemes.defaultThemeId,
     this.sound = true,
     this.haptics = true,
     this.reduceMotion = false,
+    this.showChainCounter = true,
+    this.idleHintNudge = true,
   });
 
-  final AppThemeMode themeChoice;
+  final String themeId;
+  final String lastGoodThemeId;
   final bool sound;
   final bool haptics;
   final bool reduceMotion;
+  final bool showChainCounter;
+  final bool idleHintNudge;
 
   SettingsState copyWith({
-    AppThemeMode? themeChoice,
+    String? themeId,
+    String? lastGoodThemeId,
     bool? sound,
     bool? haptics,
     bool? reduceMotion,
+    bool? showChainCounter,
+    bool? idleHintNudge,
   }) {
     return SettingsState(
-      themeChoice: themeChoice ?? this.themeChoice,
+      themeId: themeId ?? this.themeId,
+      lastGoodThemeId: lastGoodThemeId ?? this.lastGoodThemeId,
       sound: sound ?? this.sound,
       haptics: haptics ?? this.haptics,
       reduceMotion: reduceMotion ?? this.reduceMotion,
+      showChainCounter: showChainCounter ?? this.showChainCounter,
+      idleHintNudge: idleHintNudge ?? this.idleHintNudge,
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'themeChoice': themeChoice.name,
+        'themeId': themeId,
+        'lastGoodThemeId': lastGoodThemeId,
         'sound': sound,
         'haptics': haptics,
         'reduceMotion': reduceMotion,
+        'showChainCounter': showChainCounter,
+        'idleHintNudge': idleHintNudge,
       };
 
   factory SettingsState.fromJson(Map<String, dynamic> json) {
-    AppThemeMode mode = AppThemeMode.followSystem;
-    final name = json['themeChoice'] as String?;
-    if (name != null) {
-      mode = AppThemeMode.values.firstWhere(
-        (e) => e.name == name,
-        orElse: () => AppThemeMode.followSystem,
-      );
+    String resolvedThemeId = AppThemes.defaultThemeId;
+
+    if (json.containsKey('themeId')) {
+      final rawId = json['themeId'] as String?;
+      final isValid = AppThemes.allThemes.any((t) => t.id == rawId);
+      resolvedThemeId = isValid ? rawId! : AppThemes.fallbackThemeId;
+    } else if (json.containsKey('themeChoice')) {
+      // Existing user migration: existing users keep their current theme (Classic Sage)
+      resolvedThemeId = AppThemes.fallbackThemeId;
+    } else {
+      // Fresh install defaults to Obsidian Lime
+      resolvedThemeId = AppThemes.defaultThemeId;
     }
 
+    final rawLastGood = json['lastGoodThemeId'] as String?;
+    final resolvedLastGood = AppThemes.allThemes.any((t) => t.id == rawLastGood)
+        ? rawLastGood!
+        : resolvedThemeId;
+
     return SettingsState(
-      themeChoice: mode,
+      themeId: resolvedThemeId,
+      lastGoodThemeId: resolvedLastGood,
       sound: json['sound'] as bool? ?? true,
       haptics: json['haptics'] as bool? ?? true,
       reduceMotion: json['reduceMotion'] as bool? ?? false,
+      showChainCounter: json['showChainCounter'] as bool? ?? true,
+      idleHintNudge: json['idleHintNudge'] as bool? ?? true,
     );
   }
 }
@@ -72,9 +100,22 @@ class SettingsRepository extends StateNotifier<SettingsState> {
     if (str != null) {
       try {
         final map = jsonDecode(str) as Map<String, dynamic>;
-        state = SettingsState.fromJson(map);
+        final parsed = SettingsState.fromJson(map);
+        state = parsed;
+
+        // If the theme in saved json was invalid/unknown, rewrite setting to fallback
+        final savedRawThemeId = map['themeId'] as String?;
+        if (savedRawThemeId != null &&
+            !AppThemes.allThemes.any((t) => t.id == savedRawThemeId)) {
+          _save();
+        }
       } catch (_) {
-        // Fallback to defaults
+        // Fallback to defaults with classic fallback if corrupt
+        state = const SettingsState(
+          themeId: AppThemes.fallbackThemeId,
+          lastGoodThemeId: AppThemes.fallbackThemeId,
+        );
+        _save();
       }
     }
   }
@@ -84,8 +125,25 @@ class SettingsRepository extends StateNotifier<SettingsState> {
     await _prefs.setString(_key, jsonEncode(state.toJson()));
   }
 
-  Future<void> setThemeChoice(AppThemeMode mode) async {
-    state = state.copyWith(themeChoice: mode);
+  Future<void> setThemeId(String id) async {
+    final isValid = AppThemes.allThemes.any((t) => t.id == id);
+    final appliedId = isValid ? id : AppThemes.fallbackThemeId;
+    state = state.copyWith(themeId: appliedId);
+    await _save();
+  }
+
+  Future<void> markThemeGood(String id) async {
+    if (state.lastGoodThemeId != id) {
+      state = state.copyWith(lastGoodThemeId: id);
+      await _save();
+    }
+  }
+
+  Future<void> resetToClassicSage() async {
+    state = state.copyWith(
+      themeId: AppThemes.fallbackThemeId,
+      lastGoodThemeId: AppThemes.fallbackThemeId,
+    );
     await _save();
   }
 
@@ -101,6 +159,16 @@ class SettingsRepository extends StateNotifier<SettingsState> {
 
   Future<void> setReduceMotion(bool enabled) async {
     state = state.copyWith(reduceMotion: enabled);
+    await _save();
+  }
+
+  Future<void> setShowChainCounter(bool enabled) async {
+    state = state.copyWith(showChainCounter: enabled);
+    await _save();
+  }
+
+  Future<void> setIdleHintNudge(bool enabled) async {
+    state = state.copyWith(idleHintNudge: enabled);
     await _save();
   }
 }

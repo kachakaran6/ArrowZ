@@ -40,11 +40,23 @@ class _BoardViewState extends State<BoardView> {
 
   final Map<int, (Offset pos, DateTime time)> _activePointers = {};
   double _lastCellSize = 0.0;
+  bool _isZoomed = false;
 
   @override
   void initState() {
     super.initState();
     _hitTester = BoardHitTester(widget.level);
+    _transformController.addListener(_onTransformChanged);
+  }
+
+  void _onTransformChanged() {
+    final scale = _transformController.value.getMaxScaleOnAxis();
+    final zoomed = scale > 1.05;
+    if (zoomed != _isZoomed && mounted) {
+      setState(() {
+        _isZoomed = zoomed;
+      });
+    }
   }
 
   @override
@@ -54,11 +66,13 @@ class _BoardViewState extends State<BoardView> {
       _hitTester = BoardHitTester(widget.level);
       _transformController.value = Matrix4.identity();
       _lastCellSize = 0.0;
+      _isZoomed = false;
     }
   }
 
   @override
   void dispose() {
+    _transformController.removeListener(_onTransformChanged);
     _transformController.dispose();
     super.dispose();
   }
@@ -140,6 +154,7 @@ class _BoardViewState extends State<BoardView> {
           rows: widget.level.rows,
           cols: widget.level.cols,
           devicePixelRatio: dpr,
+          isInnerContainer: true,
         );
 
         if (_lastCellSize != cellSize) {
@@ -193,29 +208,40 @@ class _BoardViewState extends State<BoardView> {
         );
 
         if (needsPinchZoom) {
-          boardWidget = InteractiveViewer(
-            transformationController: _transformController,
-            minScale: 1.0,
-            maxScale: 3.0,
-            onInteractionStart: (details) {
-              if (details.pointerCount > 1) {
-                _activePointers.clear();
+          boardWidget = GestureDetector(
+            onDoubleTap: () {
+              if (_isZoomed) {
+                _transformController.value = Matrix4.identity();
+              } else {
+                final center = Offset(constraints.maxWidth / 2, constraints.maxHeight / 2);
+                _transformController.value = Matrix4.identity()
+                  ..translate(center.dx, center.dy)
+                  ..scale(1.8)
+                  ..translate(-center.dx, -center.dy);
               }
             },
-            boundaryMargin: const EdgeInsets.all(24.0),
-            child: Center(
-              child: Transform.translate(
-                offset: Offset(0, -0.02 * constraints.maxHeight),
+            child: InteractiveViewer(
+              transformationController: _transformController,
+              minScale: 1.0,
+              maxScale: 3.0,
+              panEnabled: _isZoomed,
+              scaleEnabled: true,
+              boundaryMargin:
+                  _isZoomed ? const EdgeInsets.all(32.0) : EdgeInsets.zero,
+              alignment: Alignment.center,
+              onInteractionStart: (details) {
+                if (details.pointerCount > 1) {
+                  _activePointers.clear();
+                }
+              },
+              child: Center(
                 child: boardWidget,
               ),
             ),
           );
         } else {
           boardWidget = Center(
-            child: Transform.translate(
-              offset: Offset(0, -0.02 * constraints.maxHeight),
-              child: boardWidget,
-            ),
+            child: boardWidget,
           );
         }
 

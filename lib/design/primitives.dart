@@ -15,11 +15,16 @@ abstract final class Primitives {
   static const double space40 = 40.0;
   static const double space56 = 56.0;
 
-  // Radii
-  static const double radiusChip = 8.0;
-  static const double radiusButton = 14.0;
-  static const double radiusCard = 14.0;
-  static const double radiusSheet = 22.0;
+  // Radii (scale 10, 16, 24, 28)
+  static const double radius10 = 10.0;
+  static const double radius16 = 16.0;
+  static const double radius24 = 24.0;
+  static const double radius28 = 28.0;
+
+  static const double radiusChip = radius10;
+  static const double radiusButton = radius16;
+  static const double radiusCard = radius24;
+  static const double radiusSheet = radius28;
 
   // Durations
   static const Duration durationInstant = Duration(milliseconds: 90);
@@ -36,8 +41,8 @@ abstract final class Primitives {
   static const Curve curveExitIn = Cubic(0.5, 0.0, 0.9, 0.5);
 
   // Font family names
-  static const String fontDisplay = 'Newsreader';
-  static const String fontUi = 'Manrope';
+  static const String fontDisplay = 'Bricolage Grotesque';
+  static const String fontUi = 'Figtree';
 
   // Palette 1: Sage Linen (light) - tuned to match ArrowZ icon
   static const Color sageBg = Color(0xFFF3F6EE);

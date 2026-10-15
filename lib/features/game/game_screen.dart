@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:arrowtapout/data/level_repository.dart';
 import 'package:arrowtapout/data/progress_repository.dart';
@@ -11,20 +12,24 @@ import 'package:arrowtapout/design/primitives.dart';
 import 'package:arrowtapout/diagnostics/diagnostics.dart';
 import 'package:arrowtapout/diagnostics/diagnostics_overlay.dart';
 import 'package:arrowtapout/engine/level.dart';
+import 'package:arrowtapout/features/game/board_plate.dart';
 import 'package:arrowtapout/features/game/board_view.dart';
 import 'package:arrowtapout/features/game/game_controller.dart';
 import 'package:arrowtapout/features/game/game_state.dart';
-import 'package:arrowtapout/features/game/heart_life_indicator.dart';
 import 'package:arrowtapout/features/game/hint_service.dart';
-import 'package:arrowtapout/features/game/level_progress_bar.dart';
+import 'package:arrowtapout/features/game/life_pips.dart';
+import 'package:arrowtapout/features/game/segmented_progress_bar.dart';
+import 'package:arrowtapout/features/game/sheets/chapter_complete_view.dart';
 import 'package:arrowtapout/features/game/sheets/complete_sheet.dart';
 import 'package:arrowtapout/features/game/sheets/failed_sheet.dart';
 import 'package:arrowtapout/features/game/sheets/howto_sheet.dart';
+import 'package:arrowtapout/features/game/sheets/pause_sheet.dart';
 import 'package:arrowtapout/features/game/thread_animator.dart';
 import 'package:arrowtapout/platform/ad_service.dart';
 import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/notification_service.dart';
+import 'package:arrowtapout/router/nav_utils.dart';
 import 'package:arrowtapout/router/routes.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -44,21 +49,55 @@ class GameScreen extends ConsumerStatefulWidget {
 }
 
 class _GameScreenState extends ConsumerState<GameScreen>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late BoardAnimator _animator;
+  late AnimationController _sweepController;
+  late AnimationController _chainPulseController;
+  late AnimationController _hintNudgeController;
+
   GameController? _controller;
   Level? _level;
   bool _isLoading = true;
   String? _errorMessage;
   bool _sheetOpen = false;
   bool _showDiagnostics = false;
+  Timer? _idleTimer;
+  int _lastChain = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _animator = BoardAnimator(vsync: this);
+
+    _sweepController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+
+    _chainPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+
+    _hintNudgeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _resetIdleTimer();
     _loadLevel();
+  }
+
+  void _resetIdleTimer() {
+    _idleTimer?.cancel();
+    _idleTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted && (_controller?.currentState.status == GameStatus.playing)) {
+        if (!ref.read(settingsProvider).reduceMotion) {
+          _hintNudgeController.forward(from: 0.0);
+        }
+      }
+    });
   }
 
   @override
@@ -97,8 +136,21 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
       controller.addListener((state) {
         if (!mounted) return;
+
+        // Chain pulse feedback on milestones 5, 10, 15
+        if (state.chainCount >= 5 &&
+            state.chainCount != _lastChain &&
+            (state.chainCount % 5 == 0)) {
+          _lastChain = state.chainCount;
+          if (!ref.read(settingsProvider).reduceMotion) {
+            _chainPulseController.forward(from: 0.0);
+          }
+        } else if (state.chainCount == 0) {
+          _lastChain = 0;
+        }
+
         if (state.status == GameStatus.completed && !_sheetOpen) {
-          _showCompleteSheet(state);
+          _triggerLevelComplete(state);
         } else if (state.status == GameStatus.failed && !_sheetOpen) {
           _showFailedSheet(state);
         }
@@ -128,26 +180,59 @@ class _GameScreenState extends ConsumerState<GameScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _idleTimer?.cancel();
+    _sweepController.dispose();
+    _chainPulseController.dispose();
+    _hintNudgeController.dispose();
     _animator.finalizeAllRunningAnimations();
     _controller?.dispose();
     _animator.dispose();
     super.dispose();
   }
 
-  bool _isNavigating = false;
+  void _handleBackOrPause() {
+    if (_sheetOpen) {
+      Navigator.of(context, rootNavigator: true).maybePop();
+      return;
+    }
+    _openPauseSheet();
+  }
 
-  void _handleBackToHome() {
-    if (_isNavigating) return;
-    _isNavigating = true;
-
+  void _openPauseSheet() {
+    if (_sheetOpen) return;
+    _sheetOpen = true;
     _animator.finalizeAllRunningAnimations();
     ref.read(hapticsServiceProvider).selection();
-    _sheetOpen = false;
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go(Routes.home);
-    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => PauseSheet(
+        onResume: () {
+          _sheetOpen = false;
+        },
+        onRestart: () {
+          _sheetOpen = false;
+          _handleRestart();
+        },
+        onLevels: () {
+          _sheetOpen = false;
+          _animator.finalizeAllRunningAnimations();
+          context.safeBack(fallbackRoute: Routes.levels);
+        },
+        onQuit: () {
+          _sheetOpen = false;
+          _animator.finalizeAllRunningAnimations();
+          context.safeBack(fallbackRoute: Routes.home);
+        },
+      ),
+    ).then((_) {
+      if (mounted) {
+        setState(() {
+          _sheetOpen = false;
+        });
+      }
+    });
   }
 
   void _handleRestart() {
@@ -157,7 +242,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
     final hasProgress = clearedCount > 0 || state.mistakes > 0;
 
     if (!hasProgress) {
-      // Nothing cleared yet, restart directly without confirmation
       final dpr = MediaQuery.devicePixelRatioOf(context);
       final cellSize = ComponentTokens.computeLatticeCellSize(
         screenWidth: MediaQuery.sizeOf(context).width,
@@ -170,7 +254,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
       return;
     }
 
-    // Show small confirm sheet
     _sheetOpen = true;
     final tokens = context.tokens;
     final haptics = ref.read(hapticsServiceProvider);
@@ -215,7 +298,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                     },
                     style: OutlinedButton.styleFrom(
                       foregroundColor: tokens.ink,
-                      side: BorderSide(color: tokens.threadFaint),
+                      side: BorderSide(color: tokens.line),
                       minimumSize: const Size(double.infinity, 48.0),
                       shape: RoundedRectangleBorder(
                         borderRadius:
@@ -268,6 +351,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
   Future<void> _handleHintTap() async {
     if (_controller == null || _sheetOpen) return;
 
+    _resetIdleTimer();
     unawaited(ref.read(hapticsServiceProvider).selection());
     final hintService = ref.read(hintServiceProvider);
 
@@ -307,12 +391,79 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
   void _openHowToPlaySheet() {
     if (_sheetOpen) return;
+    _resetIdleTimer();
     _sheetOpen = true;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => const HowToPlaySheet(),
     ).then((_) => _sheetOpen = false);
+  }
+
+  Future<void> _triggerLevelComplete(GameState state) async {
+    _idleTimer?.cancel();
+
+    // 350 ms stillness
+    await Future.delayed(const Duration(milliseconds: 350));
+    if (!mounted) return;
+
+    // 500 ms perimeter sweep
+    if (!ref.read(settingsProvider).reduceMotion) {
+      await _sweepController.forward(from: 0.0);
+    }
+    if (!mounted) return;
+
+    if (state.level.id % 20 == 0) {
+      _showChapterCompleteView(state);
+    } else {
+      _showCompleteSheet(state);
+    }
+  }
+
+  void _showChapterCompleteView(GameState state) {
+    if (_sheetOpen) return;
+    _sheetOpen = true;
+    const chapterNames = [
+      'First Threads',
+      'Loose Ends',
+      'Straight Talk',
+      'Corners',
+      'Spirals',
+      'Crosscurrents',
+      'Dense Weave',
+      'Labyrinth',
+      'Long Form',
+      'Masterworks',
+    ];
+    final chIdx = state.level.chapter - 1;
+    final chName = (chIdx >= 0 && chIdx < chapterNames.length)
+        ? chapterNames[chIdx]
+        : 'Chapter ${state.level.chapter}';
+    final nextName = (chIdx + 1 < chapterNames.length)
+        ? chapterNames[chIdx + 1]
+        : '';
+
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (ctx, anim, secAnim) => ChapterCompleteView(
+          chapterNumber: state.level.chapter,
+          chapterName: chName,
+          nextChapterName: nextName,
+          totalStars: ref.read(progressProvider).totalStars,
+          onContinue: () {
+            Navigator.of(ctx).pop();
+            _sheetOpen = false;
+            _animator.finalizeAllRunningAnimations();
+            context.pushReplacement(Routes.play(state.level.id + 1));
+          },
+        ),
+        transitionDuration: const Duration(milliseconds: 600),
+      ),
+    ).then((_) {
+      if (mounted) {
+        setState(() => _sheetOpen = false);
+      }
+    });
   }
 
   void _showCompleteSheet(GameState state) {
@@ -332,9 +483,11 @@ class _GameScreenState extends ConsumerState<GameScreen>
       'Long Form',
       'Masterworks',
     ];
-    final chName = chapterNames[state.level.chapter - 1];
+    final chIdx = state.level.chapter - 1;
+    final chName = (chIdx >= 0 && chIdx < chapterNames.length)
+        ? chapterNames[chIdx]
+        : 'Chapter ${state.level.chapter}';
 
-    // Preload next level in background while Complete sheet is showing
     unawaited(ref.read(levelRepositoryProvider).loadLevel(state.level.id + 1));
 
     showModalBottomSheet(
@@ -348,18 +501,37 @@ class _GameScreenState extends ConsumerState<GameScreen>
         stars: state.stars,
         threadsCleared: state.level.threads.length,
         mistakes: state.mistakes,
+        bestChain: state.bestChain,
         onNextLevel: () {
           _sheetOpen = false;
           _animator.finalizeAllRunningAnimations();
           context.pushReplacement(Routes.play(state.level.id + 1));
         },
+        onReplay: () {
+          _sheetOpen = false;
+          final dpr = MediaQuery.devicePixelRatioOf(context);
+          final cellSize = ComponentTokens.computeLatticeCellSize(
+            screenWidth: MediaQuery.sizeOf(context).width,
+            boardRegionHeight: MediaQuery.sizeOf(context).height * 0.65,
+            rows: _level!.rows,
+            cols: _level!.cols,
+            devicePixelRatio: dpr,
+          );
+          _controller?.restartLevel(cellSize);
+        },
         onLevels: () {
           _sheetOpen = false;
           _animator.finalizeAllRunningAnimations();
-          context.go(Routes.levels);
+          context.safeBack(fallbackRoute: Routes.levels);
         },
       ),
-    ).then((_) => _sheetOpen = false);
+    ).then((_) {
+      if (mounted) {
+        setState(() {
+          _sheetOpen = false;
+        });
+      }
+    });
   }
 
   void _showFailedSheet(GameState state) {
@@ -385,7 +557,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
         },
         onLevels: () {
           _sheetOpen = false;
-          context.go(Routes.levels);
+          context.safeBack(fallbackRoute: Routes.levels);
         },
       ),
     ).then((_) => _sheetOpen = false);
@@ -418,10 +590,10 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 ),
                 const SizedBox(height: Primitives.space16),
                 OutlinedButton(
-                  onPressed: () => context.go(Routes.levels),
+                  onPressed: () => context.safeBack(fallbackRoute: Routes.levels),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: tokens.ink,
-                    side: BorderSide(color: tokens.threadFaint),
+                    side: BorderSide(color: tokens.line),
                   ),
                   child: Text('Levels', style: tokens.typography.label),
                 ),
@@ -432,28 +604,31 @@ class _GameScreenState extends ConsumerState<GameScreen>
       );
     }
 
-    final gameState = _controller!.currentState;
-
-    // Check completion & failure transitions
-    if (gameState.status == GameStatus.completed && !_sheetOpen) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showCompleteSheet(gameState);
-      });
-    } else if (gameState.status == GameStatus.failed && !_sheetOpen) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showFailedSheet(gameState);
-      });
-    }
+    const chapterNames = [
+      'First Threads',
+      'Loose Ends',
+      'Straight Talk',
+      'Corners',
+      'Spirals',
+      'Crosscurrents',
+      'Dense Weave',
+      'Labyrinth',
+      'Long Form',
+      'Masterworks',
+    ];
+    final chIdx = _level!.chapter - 1;
+    final currentChapterName = (chIdx >= 0 && chIdx < chapterNames.length)
+        ? chapterNames[chIdx]
+        : 'Chapter ${_level!.chapter}';
 
     final totalThreads = _level!.threads.length;
-    final remainingThreads = gameState.activeIds.length;
     Diagnostics.instance.recordGameScreenRebuild();
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          _handleBackToHome();
+          _handleBackOrPause();
         }
       },
       child: DiagnosticsOverlay(
@@ -470,270 +645,198 @@ class _GameScreenState extends ConsumerState<GameScreen>
                   height: 64.0,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: ComponentTokens.pagePadding,
+                      horizontal: 14.0,
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Left: Back button + Level Title (Long-press enables DiagnosticsOverlay)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              key: const Key('game_back_button'),
-                              icon: Icon(
-                                Icons.arrow_back_rounded,
-                                color: tokens.ink,
-                                size: 24.0,
-                              ),
-                              tooltip: 'Back to Home',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: ComponentTokens.minTapTargetSize,
-                                minHeight: ComponentTokens.minTapTargetSize,
-                              ),
-                              onPressed: _handleBackToHome,
-                            ),
-                            const SizedBox(width: Primitives.space4),
-                            GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onLongPress: () {
-                                if (!kReleaseMode) {
-                                  setState(() {
-                                    _showDiagnostics = !_showDiagnostics;
-                                  });
-                                }
-                              },
-                              child: Text(
-                                'Level ${widget.levelId}',
-                                style: TextStyle(
-                                  fontFamily: Primitives.fontDisplay,
-                                  fontSize: 22.0,
-                                  fontWeight: FontWeight.w500,
-                                  color: tokens.ink,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                      // Centre: Heart life indicator (3 lives: red = active, white = lost)
-                      ListenableBuilder(
-                        listenable: _controller!.gameStateNotifier,
-                        builder: (context, _) => HeartLifeIndicator(
-                          remainingLives:
-                              _controller!.currentState.remainingLives,
-                          reduceMotion: reduceMotion,
-                        ),
-                      ),
-
-                      // Right: Replay button + Hint button (top-right corner)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            key: const Key('game_replay_button'),
-                            icon: Icon(
-                              Icons.refresh_rounded,
-                              color: tokens.ink,
-                              size: 24.0,
-                            ),
-                            tooltip: 'Restart level',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: ComponentTokens.minTapTargetSize,
-                              minHeight: ComponentTokens.minTapTargetSize,
-                            ),
-                            onPressed: () {
-                              ref.read(hapticsServiceProvider).selection();
-                              _handleRestart();
-                            },
-                          ),
-                          const SizedBox(width: Primitives.space4),
-                          _HintButton(
-                            key: const Key('game_hint_button'),
-                            controller: _controller!,
-                            tokens: tokens,
-                            onHintTap: _handleHintTap,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // --- 2. Level Progress Bar ---
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: ComponentTokens.pagePadding,
-                  vertical: Primitives.space8,
-                ),
-                child: ListenableBuilder(
-                  listenable: _controller!.gameStateNotifier,
-                  builder: (context, _) {
-                    Diagnostics.instance.recordHeaderCounterRebuild();
-                    return LevelProgressBar(
-                      key: const Key('level_progress_bar'),
-                      progress: _controller!.currentState.progress,
-                      reduceMotion: reduceMotion,
-                    );
-                  },
-                ),
-              ),
-
-              // Coach Mark (Level 1)
-              ListenableBuilder(
-                listenable: _controller!.gameStateNotifier,
-                builder: (context, _) {
-                  if (!_controller!.currentState.showCoachMark) {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: ComponentTokens.pagePadding,
-                      vertical: Primitives.space8,
-                    ),
-                    child: Text(
-                      'Tap a thread that has a clear path.',
-                      style: tokens.typography.body.copyWith(
-                        color: tokens.accent,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  );
-                },
-              ),
-
-              // --- 3. Board Region ---
-              Expanded(
-                child: BoardView(
-                  level: _level!,
-                  getActiveIds: () => _controller!.currentState.activeIds,
-                  animator: _animator,
-                  reduceMotion: reduceMotion,
-                  interactive: !_sheetOpen,
-                  onThreadTap: (id) {
-                    final dpr = MediaQuery.devicePixelRatioOf(context);
-                    final cellSize = ComponentTokens.computeLatticeCellSize(
-                      screenWidth: MediaQuery.sizeOf(context).width,
-                      boardRegionHeight:
-                          MediaQuery.sizeOf(context).height * 0.65,
-                      rows: _level!.rows,
-                      cols: _level!.cols,
-                      devicePixelRatio: dpr,
-                    );
-                    _controller?.handleThreadTap(id, cellSize);
-                  },
-                ),
-              ),
-
-              // --- 4. Bottom Hairline ---
-              Container(
-                height: 1.0,
-                margin: const EdgeInsets.symmetric(
-                  horizontal: ComponentTokens.pagePadding,
-                ),
-                color: tokens.threadFaint,
-              ),
-
-              // --- 5. Bottom Bar (Height 56 + Inset) ---
-              SizedBox(
-                height: 56.0,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: ComponentTokens.pagePadding,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Remaining threads counter
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 120),
-                            transitionBuilder: (child, animation) =>
-                                FadeTransition(
-                                    opacity: animation, child: child),
-                            child: Builder(
-                              key: ValueKey(remainingThreads),
-                              builder: (context) {
-                                Diagnostics.instance.recordHeaderCounterRebuild();
-                                return Text(
-                                  '$remainingThreads',
-                                  style: TextStyle(
-                                    fontFamily: Primitives.fontDisplay,
-                                    fontSize: 20.0,
-                                    height: 1.0,
-                                    fontWeight: FontWeight.w500,
-                                    color: tokens.ink,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures()
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 6.0),
-                          Text(
-                            'of $totalThreads remaining',
-                            style: TextStyle(
-                              fontFamily: Primitives.fontUi,
-                              fontSize: 13.0,
-                              fontWeight: FontWeight.w500,
-                              color: tokens.inkMuted,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // How to play (Right aligned)
-                      InkWell(
-                        onTap: () {
-                          ref.read(hapticsServiceProvider).selection();
-                          _openHowToPlaySheet();
-                        },
-                        borderRadius:
-                            BorderRadius.circular(Primitives.radiusButton),
-                        child: Container(
-                          constraints: const BoxConstraints(
-                            minHeight: ComponentTokens.minTapTargetSize,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          alignment: Alignment.center,
+                        // Left: Back button + Level Title + Chapter Caption
+                        Expanded(
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                Icons.help_outline_rounded,
-                                size: 20.0,
-                                color: tokens.inkMuted,
+                              IconButton(
+                                key: const Key('game_back_button'),
+                                icon: Icon(
+                                  Icons.arrow_back_rounded,
+                                  color: tokens.ink,
+                                  size: 24.0,
+                                ),
+                                tooltip: 'Pause / Back',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 40.0,
+                                  minHeight: 40.0,
+                                ),
+                                onPressed: _handleBackOrPause,
                               ),
-                              const SizedBox(width: 6.0),
-                              Text(
-                                'How to play',
-                                style: TextStyle(
-                                  fontFamily: Primitives.fontUi,
-                                  fontSize: 14.0,
-                                  fontWeight: FontWeight.w600,
-                                  color: tokens.inkMuted,
+                              const SizedBox(width: 4.0),
+                              Flexible(
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onLongPress: () {
+                                    if (!kReleaseMode) {
+                                      setState(() {
+                                        _showDiagnostics = !_showDiagnostics;
+                                      });
+                                    }
+                                  },
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Level ${widget.levelId}',
+                                        style: TextStyle(
+                                          fontFamily: Primitives.fontDisplay,
+                                          fontSize: 20.0,
+                                          fontWeight: FontWeight.w700,
+                                          color: tokens.ink,
+                                          fontFeatures: const [
+                                            FontFeature.tabularFigures()
+                                          ],
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        currentChapterName,
+                                        style: tokens.typography.caption.copyWith(
+                                          color: tokens.inkMuted,
+                                          height: 1.0,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ],
+
+                        // Centre: Life Pips (Accent capsules)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: ListenableBuilder(
+                            listenable: _controller!.gameStateNotifier,
+                            builder: (context, _) => LifePips(
+                              remainingLives:
+                                  _controller!.currentState.remainingLives,
+                              reduceMotion: reduceMotion,
+                            ),
+                          ),
+                        ),
+
+                        // Right: Restart + Hint Button
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              key: const Key('game_replay_button'),
+                              icon: Icon(
+                                Icons.refresh_rounded,
+                                color: tokens.ink,
+                                size: 22.0,
+                              ),
+                              tooltip: 'Restart level',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 40.0,
+                                minHeight: 40.0,
+                              ),
+                              onPressed: () {
+                                ref.read(hapticsServiceProvider).selection();
+                                _handleRestart();
+                              },
+                            ),
+                            const SizedBox(width: 2.0),
+                            _HintButton(
+                              key: const Key('game_hint_button'),
+                              controller: _controller!,
+                              tokens: tokens,
+                              onHintTap: _handleHintTap,
+                              nudgeAnimation: _hintNudgeController,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+
+                // Coach Mark (Level 1)
+                ListenableBuilder(
+                  listenable: _controller!.gameStateNotifier,
+                  builder: (context, _) {
+                    if (!_controller!.currentState.showCoachMark) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: ComponentTokens.pagePadding,
+                        vertical: Primitives.space8,
+                      ),
+                      child: Text(
+                        'Tap a thread that has a clear path.',
+                        style: tokens.typography.body.copyWith(
+                          color: tokens.accent,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                  },
+                ),
+
+                // --- 2. Board Region inside BoardPlate ---
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20.0,
+                      vertical: 8.0,
+                    ),
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge(
+                          [_chainPulseController, _sweepController]),
+                      builder: (context, child) {
+                        return BoardPlate(
+                          chainPulseProgress: _chainPulseController.value,
+                          completeSweepProgress: _sweepController.value,
+                          child: BoardView(
+                            level: _level!,
+                            getActiveIds: () =>
+                                _controller!.currentState.activeIds,
+                            animator: _animator,
+                            reduceMotion: reduceMotion,
+                            interactive: !_sheetOpen,
+                            onThreadTap: (id) {
+                              _resetIdleTimer();
+                              _controller?.handleThreadTap(id, _animator.cellSize);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+
+                // --- 3. Bottom Segmented Progress Bar & Chain ---
+                ListenableBuilder(
+                  listenable: _controller!.gameStateNotifier,
+                  builder: (context, _) {
+                    final state = _controller!.currentState;
+                    final cleared = totalThreads - state.activeIds.length;
+                    return SegmentedProgressBar(
+                      totalThreads: totalThreads,
+                      clearedThreads: cleared,
+                      chainCount: state.chainCount,
+                      onHowToPlay: _openHowToPlaySheet,
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -745,11 +848,13 @@ class _HintButton extends ConsumerWidget {
     required this.controller,
     required this.tokens,
     required this.onHintTap,
+    this.nudgeAnimation,
   });
 
   final GameController controller;
   final AppTokens tokens;
   final VoidCallback onHintTap;
+  final Animation<double>? nudgeAnimation;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -781,7 +886,7 @@ class _HintButton extends ConsumerWidget {
       );
     }
 
-    return Semantics(
+    final Widget button = Semantics(
       button: true,
       label: 'Hint',
       enabled: isInteractive,
@@ -796,5 +901,21 @@ class _HintButton extends ConsumerWidget {
         onPressed: isInteractive ? onHintTap : null,
       ),
     );
+
+    if (nudgeAnimation != null) {
+      return AnimatedBuilder(
+        animation: nudgeAnimation!,
+        builder: (context, child) {
+          final scale = 1.0 + (math.sin(nudgeAnimation!.value * math.pi) * 0.18);
+          return Transform.scale(
+            scale: scale,
+            child: child,
+          );
+        },
+        child: button,
+      );
+    }
+
+    return button;
   }
 }

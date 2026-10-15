@@ -5,7 +5,7 @@ abstract final class ComponentTokens {
   static const double pagePadding = 20.0;
   static const double boardVerticalPad = 12.0;
   static const double maxCellSize = 46.0;
-  static const double zoomThresholdCellSize = 20.0;
+  static const double zoomThresholdCellSize = 16.0;
   static const double minTapTargetSize = 48.0;
   static const double mistakeDotSize = 8.0;
   static const double mistakeDotGap = 10.0;
@@ -14,12 +14,12 @@ abstract final class ComponentTokens {
 
   /// Computes the thread stroke width for a given [cellSize] in logical pixels.
   static double threadStroke(double cellSize) {
-    return (cellSize * 0.16).clamp(3.8, 6.8);
+    return (cellSize * 0.06).clamp(1.6, 2.4);
   }
 
   /// Computes the chevron arrowhead arm length for a given [cellSize].
   static double arrowheadArm(double cellSize) {
-    return (cellSize * 0.36).clamp(8.0, 16.0);
+    return (cellSize * 0.23).clamp(4.0, 9.0);
   }
 
   /// Computes the grid dot radius for a given [cellSize].
@@ -45,12 +45,16 @@ abstract final class ComponentTokens {
     required int rows,
     required int cols,
     double devicePixelRatio = 1.0,
+    bool isInnerContainer = false,
   }) {
     final denomW = math.max(1, cols - 1);
     final denomH = math.max(1, rows - 1);
 
-    final rawW = (screenWidth - 2 * pagePadding) / denomW;
-    final maxH = (boardRegionHeight - 2 * boardVerticalPad) / denomH;
+    final padW = isInnerContainer ? 4.0 : 2 * pagePadding;
+    final padH = isInnerContainer ? 4.0 : 2 * boardVerticalPad;
+
+    final rawW = (screenWidth - padW) / denomW;
+    final maxH = (boardRegionHeight - padH) / denomH;
 
     final rawCell = math.min(rawW, maxH).clamp(0.0, maxCellSize);
     return snapCellSize(rawCell, devicePixelRatio);

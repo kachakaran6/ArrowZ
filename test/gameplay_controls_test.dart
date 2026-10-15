@@ -9,7 +9,7 @@ import 'package:arrowtapout/engine/thread.dart';
 import 'package:arrowtapout/features/game/game_controller.dart';
 import 'package:arrowtapout/features/game/game_screen.dart';
 import 'package:arrowtapout/features/game/game_state.dart';
-import 'package:arrowtapout/features/game/heart_life_indicator.dart';
+import 'package:arrowtapout/features/game/life_pips.dart';
 import 'package:arrowtapout/features/game/hint_service.dart';
 import 'package:arrowtapout/features/game/thread_animator.dart';
 import 'package:arrowtapout/platform/ad_service.dart';
@@ -33,6 +33,12 @@ class _FakeLevelRepository implements LevelRepository {
 
   @override
   Future<Level> loadLevel(int id) async => testLevel;
+
+  @override
+  Level? getLevelSync(int id) => testLevel;
+
+  @override
+  Future<void> init() async {}
 
   @override
   Future<List<Level>> loadChapter(int chapterNumber) async => [testLevel];
@@ -282,8 +288,13 @@ void main() {
 
       expect(find.byKey(const Key('game_back_button')), findsOneWidget);
 
-      // Tap back button
+      // Tap back button opens Pause sheet
       await tester.tap(find.byKey(const Key('game_back_button')));
+      await tester.pumpAndSettle();
+
+      // Tap Quit to Home on Pause sheet
+      expect(find.text('Quit to Home'), findsOneWidget);
+      await tester.tap(find.text('Quit to Home'));
       await tester.pumpAndSettle();
 
       expect(currentPath, equals('/home'));
@@ -331,10 +342,13 @@ void main() {
       await tester.pumpAndSettle();
 
       final backFinder = find.byKey(const Key('game_back_button'));
-      // Rapid triple tap
+      // Tap back opens pause sheet
       await tester.tap(backFinder);
-      await tester.tap(backFinder);
-      await tester.tap(backFinder);
+      await tester.pumpAndSettle();
+
+      // Tap Quit to Home
+      expect(find.text('Quit to Home'), findsOneWidget);
+      await tester.tap(find.text('Quit to Home'));
       await tester.pumpAndSettle();
 
       expect(homeNavigations, equals(1));
@@ -392,7 +406,7 @@ void main() {
         expect(find.byKey(const Key('game_back_button')), findsOneWidget);
         expect(find.byKey(const Key('game_replay_button')), findsOneWidget);
         expect(find.byKey(const Key('game_hint_button')), findsOneWidget);
-        expect(find.byType(HeartLifeIndicator), findsOneWidget);
+        expect(find.byType(LifePips), findsOneWidget);
       }
     });
 

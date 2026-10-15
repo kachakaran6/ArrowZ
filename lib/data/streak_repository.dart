@@ -58,6 +58,16 @@ class StreakData {
   final int reminderMinute;
   final int schemaVersion;
 
+  bool get completedToday {
+    if (lastQualifyingPlayDate == null) return false;
+    final now = DateTime.now();
+    return lastQualifyingPlayDate!.year == now.year &&
+        lastQualifyingPlayDate!.month == now.month &&
+        lastQualifyingPlayDate!.day == now.day;
+  }
+
+  int get totalCompleted => qualifyingDates.length;
+
   StreakData copyWith({
     int? currentStreak,
     int? bestStreak,

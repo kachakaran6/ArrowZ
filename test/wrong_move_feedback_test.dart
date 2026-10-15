@@ -212,14 +212,13 @@ void main() {
       expect(initialDanger, equals(1.0));
 
       // Paint and verify color matches tokens.danger
-      const tokens = AppThemes.sageLinenTokens;
+      final tokens = AppThemes.sageLinenTokens;
       final painter = BoardPainter(
         level: testLevel,
-        activeIds: controller.state.activeIds,
+        activeThreadIds: controller.state.activeIds,
         cellSize: 24.0,
         tokens: tokens,
         animator: animator,
-        reduceMotion: false,
       );
 
       final recorder = ui.PictureRecorder();
@@ -286,7 +285,7 @@ void main() {
 
     test('9. Disabled haptics do not produce haptic requests', () {
       container.read(settingsProvider.notifier).state = const SettingsState(
-        themeChoice: AppThemeMode.sageLinen,
+        themeId: 'classic',
         sound: true,
         haptics: false,
         reduceMotion: false,
@@ -304,7 +303,7 @@ void main() {
 
     test('10. Disabled sound does not produce sound requests', () {
       container.read(settingsProvider.notifier).state = const SettingsState(
-        themeChoice: AppThemeMode.sageLinen,
+        themeId: 'classic',
         sound: false,
         haptics: true,
         reduceMotion: false,
