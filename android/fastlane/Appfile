@@ -1,2 +1,17 @@
-json_key_file(ENV["PLAY_STORE_JSON_KEY"] || "api-key.json")
+def resolve_service_key
+  return ENV["PLAY_STORE_JSON_KEY"] if ENV["PLAY_STORE_JSON_KEY"] && File.exist?(ENV["PLAY_STORE_JSON_KEY"])
+
+  candidates = [
+    File.join(__dir__, "api-key.json"),
+    File.expand_path("../api-key.json", __dir__),
+    File.expand_path("../app.json", __dir__),
+    File.expand_path("../../app.json", __dir__),
+    File.expand_path("../../api-key.json", __dir__)
+  ]
+
+  candidates.find { |path| File.exist?(path) }
+end
+
+key_path = resolve_service_key
+json_key_file(key_path) if key_path
 package_name("com.arrowz.app")

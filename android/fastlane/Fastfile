@@ -11,6 +11,8 @@ platform :android do
 
     candidates = [
       File.join(__dir__, "api-key.json"),
+      File.expand_path("../api-key.json", __dir__),
+      File.expand_path("../app.json", __dir__),
       File.expand_path("../../app.json", __dir__),
       File.expand_path("../../api-key.json", __dir__)
     ]
