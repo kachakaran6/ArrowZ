@@ -1,8 +1,9 @@
 import 'dart:math' as math;
 import 'package:arrowtapout/engine/cell.dart';
+import 'package:arrowtapout/engine/dir.dart';
 import 'package:arrowtapout/engine/level.dart';
 
-/// 2D point in board coordinate space (where cell (r,c) centre is at (c + 0.5, r + 0.5)).
+/// 2D point in board coordinate space (where node (r,c) is at (c, r)).
 class BoardPoint {
   const BoardPoint(this.x, this.y);
 
@@ -19,7 +20,7 @@ class BoardPoint {
   String toString() => 'Point($x, $y)';
 }
 
-/// A line segment between two board points (consecutive cell centres).
+/// A line segment between two board points (e.g. consecutive nodes or arrowhead chevron arms).
 class BoardSegment {
   const BoardSegment(this.p1, this.p2, this.threadId);
 
@@ -49,6 +50,9 @@ class BoardSegment {
 }
 
 /// Spatial index for fast O(1) hit testing on the board.
+///
+/// Indexes thread centre-line segments AND arrowhead chevron arms, with padding
+/// bucket support so edge taps and dense lattice taps resolve reliably.
 class SpatialHitIndex {
   SpatialHitIndex(Level level)
       : rows = level.rows,
@@ -62,6 +66,7 @@ class SpatialHitIndex {
 
   void _buildIndex(Level level) {
     for (final thread in level.threads) {
+      // 1. Thread body segments between consecutive nodes
       for (var i = 0; i < thread.cells.length - 1; i++) {
         final c1 = thread.cells[i];
         final c2 = thread.cells[i + 1];
@@ -72,16 +77,38 @@ class SpatialHitIndex {
         _bucketSegment(c1, seg);
         _bucketSegment(c2, seg);
       }
+
+      // 2. Arrowhead chevron arms at the head node
+      final head = thread.head;
+      final headTip = BoardPoint(head.c.toDouble(), head.r.toDouble());
+      final angle = _dirToAngle(thread.dir);
+      const armLengthCells = 0.23; // Spec 13: 0.23 * cell
+      const halfAngleRad = 40.0 * math.pi / 180.0;
+
+      final arm1End = BoardPoint(
+        headTip.x - math.cos(angle - halfAngleRad) * armLengthCells,
+        headTip.y - math.sin(angle - halfAngleRad) * armLengthCells,
+      );
+      final arm2End = BoardPoint(
+        headTip.x - math.cos(angle + halfAngleRad) * armLengthCells,
+        headTip.y - math.sin(angle + halfAngleRad) * armLengthCells,
+      );
+
+      final armSeg1 = BoardSegment(headTip, arm1End, thread.id);
+      final armSeg2 = BoardSegment(headTip, arm2End, thread.id);
+
+      _bucketSegment(head, armSeg1);
+      _bucketSegment(head, armSeg2);
     }
   }
 
   void _bucketSegment(Cell cell, BoardSegment seg) {
-    // Add to target cell and 8 surrounding neighbours to catch boundary taps
+    // Add to target cell and surrounding neighbourhood (including negative padding cells)
     for (var dr = -1; dr <= 1; dr++) {
       for (var dc = -1; dc <= 1; dc++) {
         final r = cell.r + dr;
         final c = cell.c + dc;
-        if (r >= 0 && r < rows && c >= 0 && c < cols) {
+        if (r >= -2 && r <= rows + 1 && c >= -2 && c <= cols + 1) {
           final bucket = _cellBuckets.putIfAbsent(Cell(r, c), () => []);
           if (!bucket.contains(seg)) {
             bucket.add(seg);
@@ -101,15 +128,25 @@ class SpatialHitIndex {
   }) {
     final cr = tapPoint.y.floor();
     final cc = tapPoint.x.floor();
-    final bucketCell = Cell(cr, cc);
-    final segments = _cellBuckets[bucketCell];
-    if (segments == null || segments.isEmpty) return null;
+
+    // Query 3x3 neighbourhood around tap point to cover boundary edges & padding
+    final candidates = <BoardSegment>{};
+    for (var dr = -1; dr <= 1; dr++) {
+      for (var dc = -1; dc <= 1; dc++) {
+        final bucket = _cellBuckets[Cell(cr + dr, cc + dc)];
+        if (bucket != null) {
+          candidates.addAll(bucket);
+        }
+      }
+    }
+
+    if (candidates.isEmpty) return null;
 
     int? bestThreadId;
     var bestDistance = double.infinity;
     var bestIsInterior = false;
 
-    for (final seg in segments) {
+    for (final seg in candidates) {
       if (!activeThreadIds.contains(seg.threadId)) continue;
 
       final (dist, isInterior) = seg.distanceToPoint(tapPoint);
@@ -136,4 +173,11 @@ class SpatialHitIndex {
 
     return bestThreadId;
   }
+
+  static double _dirToAngle(Dir dir) => switch (dir) {
+        Dir.right => 0.0,
+        Dir.down => math.pi / 2.0,
+        Dir.left => math.pi,
+        Dir.up => -math.pi / 2.0,
+      };
 }

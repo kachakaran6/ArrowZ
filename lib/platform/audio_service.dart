@@ -1,31 +1,81 @@
-import 'dart:math' as math;
-
+import 'dart:async';
+import 'package:arrowtapout/core/debug_log.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/diagnostics/diagnostics.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class AudioService {
-  AudioService(this._ref) {
-    _init();
+enum SoundEvent {
+  pull,
+  block,
+  complete,
+  ui,
+}
+
+abstract class SoundService {
+  Future<void> init(); // called in main() before runApp
+  void play(SoundEvent e); // synchronous, never awaits, never throws
+  void onResume(); // re-prepare after background or audio-focus loss
+  Diagnostics get stats; // requested, started, failed, inFlight
+}
+
+class _SoundVoice {
+  _SoundVoice({
+    required this.player,
+    required this.source,
+  });
+
+  final AudioPlayer player;
+  final Source source;
+  double startTimeMs = 0.0;
+  bool isPlaying = false;
+  StreamSubscription<void>? completeSub;
+  Timer? safetyTimer;
+
+  void dispose() {
+    completeSub?.cancel();
+    safetyTimer?.cancel();
+    player.dispose();
+  }
+}
+
+class AudioService implements SoundService {
+  AudioService([this._ref]) {
+    // If a Ref is supplied, listen to settings synchronously
+    if (_ref != null) {
+      try {
+        _soundEnabled = _ref.read(settingsProvider).sound;
+        _ref.listen<SettingsState>(settingsProvider, (_, next) {
+          _soundEnabled = next.sound;
+        });
+      } catch (_) {}
+    }
   }
 
-  final Ref _ref;
-  final math.Random _rand = math.Random();
+  final Ref? _ref;
 
-  // 4-player pool for pull sounds to allow smooth rapid overlap
-  final List<AudioPlayer> _pullPlayers = [];
-  int _pullIndex = 0;
-
-  AudioPlayer? _blockPlayer;
-  AudioPlayer? _completePlayer;
-  AudioPlayer? _uiPlayer;
+  static const int _pullVoiceCount = 10;
+  final List<_SoundVoice> _pullVoices = [];
+  final List<_SoundVoice> _blockVoices = [];
+  _SoundVoice? _completeVoice;
+  _SoundVoice? _uiVoice;
 
   bool _initialized = false;
+  bool _soundEnabled = true;
+  bool _isRecreating = false;
 
-  void _init() {
+  void updateSoundEnabled(bool enabled) {
+    _soundEnabled = enabled;
+  }
+
+  @override
+  Diagnostics get stats => Diagnostics.instance;
+
+  @override
+  Future<void> init() async {
+    if (_initialized) return;
     try {
-      AudioPlayer.global.setAudioContext(
+      await AudioPlayer.global.setAudioContext(
         AudioContext(
           android: const AudioContextAndroid(
             isSpeakerphoneOn: false,
@@ -36,103 +86,233 @@ class AudioService {
           ),
           iOS: AudioContextIOS(
             category: AVAudioSessionCategory.ambient,
-            options: const {
-              AVAudioSessionOptions.mixWithOthers,
-            },
+            options: const {},
           ),
         ),
       );
 
-      for (var i = 0; i < 4; i++) {
-        final p = AudioPlayer();
-        p.setPlayerMode(PlayerMode.lowLatency);
-        _pullPlayers.add(p);
+      _pullVoices.clear();
+      for (var i = 0; i < _pullVoiceCount; i++) {
+        _pullVoices.add(_createVoice(AssetSource('audio/pull.ogg')));
       }
 
-      _blockPlayer = AudioPlayer()..setPlayerMode(PlayerMode.lowLatency);
-      _completePlayer = AudioPlayer()..setPlayerMode(PlayerMode.lowLatency);
-      _uiPlayer = AudioPlayer()..setPlayerMode(PlayerMode.lowLatency);
+      _blockVoices.clear();
+      for (var i = 0; i < 3; i++) {
+        _blockVoices.add(_createVoice(AssetSource('audio/block.ogg')));
+      }
+
+      _completeVoice = _createVoice(AssetSource('audio/complete.ogg'));
+      _uiVoice = _createVoice(AssetSource('audio/ui.ogg'));
+
       _initialized = true;
-      Diagnostics.instance.updateSoundStats(
-        requested: 0,
-        started: 0,
-        failed: 0,
-        inFlight: 0,
-        poolSize: _pullPlayers.length,
-      );
+      _updateDiagnosticsPool();
+      debugLog('AudioService initialized with ${_pullVoices.length} pull voices');
     } catch (e) {
       Diagnostics.instance.soundLastError = e.toString();
+      debugLog('AudioService init failed: $e');
     }
   }
 
-  bool get _soundEnabled => _ref.read(settingsProvider).sound;
+  _SoundVoice _createVoice(Source source) {
+    final player = AudioPlayer();
+    player.setPlayerMode(PlayerMode.lowLatency);
 
-  void playPull() {
+    final voice = _SoundVoice(player: player, source: source);
+    voice.completeSub = player.onPlayerComplete.listen((_) {
+      voice.isPlaying = false;
+      voice.safetyTimer?.cancel();
+      _updateInFlightCount();
+    });
+
+    return voice;
+  }
+
+  void _updateInFlightCount() {
+    final inFlight = _pullVoices.where((v) => v.isPlaying).length +
+        _blockVoices.where((v) => v.isPlaying).length +
+        ((_completeVoice?.isPlaying ?? false) ? 1 : 0) +
+        ((_uiVoice?.isPlaying ?? false) ? 1 : 0);
+    Diagnostics.instance.soundInFlightVoices = inFlight;
+  }
+
+  void _updateDiagnosticsPool() {
+    Diagnostics.instance.soundPoolSize = _pullVoices.length;
+    _updateInFlightCount();
+  }
+
+  @override
+  void play(SoundEvent e) {
     Diagnostics.instance.soundRequested++;
-    if (!_soundEnabled || !_initialized || _pullPlayers.isEmpty) return;
-    try {
-      final player = _pullPlayers[_pullIndex];
-      _pullIndex = (_pullIndex + 1) % _pullPlayers.length;
+    if (!_soundEnabled) return;
 
-      // Subtle pitch variation +/- 6%
-      final rate = 1.0 + (_rand.nextDouble() * 0.12 - 0.06);
-      player.setPlaybackRate(rate);
-      player.play(AssetSource('audio/pull.ogg'), volume: 0.85);
-      Diagnostics.instance.soundStarted++;
-    } catch (e) {
-      Diagnostics.instance.soundFailed++;
-      Diagnostics.instance.soundLastError = e.toString();
+    if (!_initialized) {
+      // Lazy init fallback if not awaited in main
+      unawaited(init().then((_) {
+        if (_initialized) _dispatchPlay(e);
+      }));
+      return;
+    }
+
+    _dispatchPlay(e);
+  }
+
+  void _dispatchPlay(SoundEvent e) {
+    switch (e) {
+      case SoundEvent.pull:
+        _playVoiceWithStealing(_pullVoices, volume: 0.85, safetyDurationMs: 450);
+      case SoundEvent.block:
+        _playVoiceWithStealing(_blockVoices, volume: 0.90, safetyDurationMs: 400);
+      case SoundEvent.complete:
+        if (_completeVoice != null) {
+          _playSingleVoice(_completeVoice!, volume: 0.95, safetyDurationMs: 900);
+        }
+      case SoundEvent.ui:
+        if (_uiVoice != null) {
+          _playSingleVoice(_uiVoice!, volume: 0.70, safetyDurationMs: 300);
+        }
     }
   }
 
-  void playBlock() {
-    Diagnostics.instance.soundRequested++;
-    if (!_soundEnabled || !_initialized || _blockPlayer == null) return;
-    try {
-      _blockPlayer!.play(AssetSource('audio/block.ogg'), volume: 0.9);
-      Diagnostics.instance.soundStarted++;
-    } catch (e) {
-      Diagnostics.instance.soundFailed++;
-      Diagnostics.instance.soundLastError = e.toString();
+  void _playVoiceWithStealing(
+    List<_SoundVoice> voices, {
+    required double volume,
+    required int safetyDurationMs,
+  }) {
+    if (voices.isEmpty) return;
+
+    // 1. Look for an idle voice
+    _SoundVoice? target;
+    for (final v in voices) {
+      if (!v.isPlaying) {
+        target = v;
+        break;
+      }
     }
+
+    // 2. If all voices are busy, steal the oldest voice (smallest startTimeMs)
+    target ??= voices.reduce((a, b) => a.startTimeMs < b.startTimeMs ? a : b);
+
+    _playSingleVoice(target, volume: volume, safetyDurationMs: safetyDurationMs);
   }
 
-  void playComplete() {
-    Diagnostics.instance.soundRequested++;
-    if (!_soundEnabled || !_initialized || _completePlayer == null) return;
-    try {
-      _completePlayer!.play(AssetSource('audio/complete.ogg'), volume: 0.95);
-      Diagnostics.instance.soundStarted++;
-    } catch (e) {
-      Diagnostics.instance.soundFailed++;
-      Diagnostics.instance.soundLastError = e.toString();
-    }
+  void _playSingleVoice(
+    _SoundVoice voice, {
+    required double volume,
+    required int safetyDurationMs,
+  }) {
+    final nowMs = DateTime.now().microsecondsSinceEpoch / 1000.0;
+    voice.isPlaying = true;
+    voice.startTimeMs = nowMs;
+
+    voice.safetyTimer?.cancel();
+    voice.safetyTimer = Timer(Duration(milliseconds: safetyDurationMs), () {
+      voice.isPlaying = false;
+      _updateInFlightCount();
+    });
+
+    _updateInFlightCount();
+
+    unawaited(() async {
+      try {
+        await voice.player.stop();
+        await voice.player.seek(Duration.zero);
+        await voice.player.play(voice.source, volume: volume);
+        Diagnostics.instance.soundStarted++;
+      } catch (e) {
+        Diagnostics.instance.soundFailed++;
+        Diagnostics.instance.soundLastError = e.toString();
+        debugLog('Sound playback error: $e');
+        _handlePlayError();
+      }
+    }());
   }
 
-  void playUi() {
-    Diagnostics.instance.soundRequested++;
-    if (!_soundEnabled || !_initialized || _uiPlayer == null) return;
-    try {
-      _uiPlayer!.play(AssetSource('audio/ui.ogg'), volume: 0.7);
-      Diagnostics.instance.soundStarted++;
-    } catch (e) {
-      Diagnostics.instance.soundFailed++;
-      Diagnostics.instance.soundLastError = e.toString();
-    }
+  void _handlePlayError() {
+    if (_isRecreating) return;
+    _isRecreating = true;
+    unawaited(() async {
+      try {
+        await _recreateEngine();
+      } finally {
+        _isRecreating = false;
+      }
+    }());
   }
+
+  Future<void> _recreateEngine() async {
+    debugLog('Recreating AudioService engine...');
+    for (final v in _pullVoices) {
+      v.dispose();
+    }
+    _pullVoices.clear();
+    for (final v in _blockVoices) {
+      v.dispose();
+    }
+    _blockVoices.clear();
+    _completeVoice?.dispose();
+    _uiVoice?.dispose();
+    _initialized = false;
+    await init();
+  }
+
+  @override
+  void onResume() {
+    if (!_initialized) {
+      unawaited(init());
+      return;
+    }
+    unawaited(() async {
+      try {
+        // Silent test play to verify device audio output channel is alive
+        if (_pullVoices.isNotEmpty) {
+          final testVoice = _pullVoices.first;
+          await testVoice.player.stop();
+          await testVoice.player.seek(Duration.zero);
+          await testVoice.player.play(testVoice.source, volume: 0.0);
+        }
+      } catch (e) {
+        Diagnostics.instance.soundLastError = e.toString();
+        debugLog('Silent test play on resume failed, recreating: $e');
+        await _recreateEngine();
+      }
+    }());
+  }
+
+  // Backward-compatible API helpers
+  void playPull() => play(SoundEvent.pull);
+  void playBlock() => play(SoundEvent.block);
+  void playComplete() => play(SoundEvent.complete);
+  void playUi() => play(SoundEvent.ui);
 
   void dispose() {
-    for (final p in _pullPlayers) {
-      p.dispose();
+    for (final v in _pullVoices) {
+      v.dispose();
     }
-    _blockPlayer?.dispose();
-    _completePlayer?.dispose();
-    _uiPlayer?.dispose();
+    _pullVoices.clear();
+    for (final v in _blockVoices) {
+      v.dispose();
+    }
+    _blockVoices.clear();
+    _completeVoice?.dispose();
+    _completeVoice = null;
+    _uiVoice?.dispose();
+    _uiVoice = null;
+    _initialized = false;
   }
 }
 
-final audioServiceProvider = Provider<AudioService>((ref) {
+/// Global shared non-autoDispose sound service provider.
+final soundServiceProvider = Provider<SoundService>((ref) {
   final service = AudioService(ref);
   ref.onDispose(service.dispose);
   return service;
+});
+
+/// Legacy compatibility provider alias for existing code.
+final audioServiceProvider = Provider<AudioService>((ref) {
+  final service = ref.watch(soundServiceProvider);
+  if (service is AudioService) return service;
+  final fallback = AudioService(ref);
+  ref.onDispose(fallback.dispose);
+  return fallback;
 });

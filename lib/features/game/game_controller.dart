@@ -12,6 +12,7 @@ import 'package:arrowtapout/features/game/wrong_move_feedback_controller.dart';
 import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/notification_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class GameController extends StateNotifier<GameState> {
@@ -59,6 +60,17 @@ class GameController extends StateNotifier<GameState> {
 
   Timer? _completeTimer;
   Timer? _snapshotDebounceTimer;
+
+  late final ValueNotifier<GameState> gameStateNotifier =
+      ValueNotifier<GameState>(state);
+
+  @override
+  set state(GameState value) {
+    super.state = value;
+    if (mounted) {
+      gameStateNotifier.value = value;
+    }
+  }
 
   GameState get currentState => state;
 
@@ -124,24 +136,33 @@ class GameController extends StateNotifier<GameState> {
         _handleLevelCompleted();
       }
     } else {
-      // Blocked thread tap
+      // Blocked thread tap: must NEVER be debounced or ignored!
       final nowMs = DateTime.now().millisecondsSinceEpoch.toDouble();
-      final isDebounced = state.lastBlockedThreadId == threadId &&
-          (nowMs - state.lastBlockedTapTimeMs) < 250.0;
-
-      // Prevent duplicate action and vibration spam during rapid taps on the same blocked arrow
-      if (isDebounced) return;
-
       final thread = state.level.threads.firstWhere((t) => t.id == threadId);
 
-      // Coordinate wrong move feedback (immediate strong haptics, sound, shake, red highlight, semantics)
+      // Coordinate wrong move feedback (immediate sound, haptics, shake, red highlight, semantics)
       feedbackController.handleWrongMove(
         threadId: threadId,
         dir: thread.dir,
         reduceMotion: _reduceMotion,
       );
 
-      final newMistakes = state.mistakes + 1;
+      final blocker = _boardState.firstBlocker(threadId);
+      if (blocker != null) {
+        animator.triggerBlocked(
+          threadId: threadId,
+          blocker: blocker,
+          cellSize: cellSize,
+          reduceMotion: _reduceMotion,
+        );
+      }
+
+      // Spec 03: Consecutive taps on the same blocked thread within 600 ms count as one mistake
+      final isMistakeDebounced = state.lastBlockedThreadId == threadId &&
+          (nowMs - state.lastBlockedTapTimeMs) < 600.0;
+
+      final newMistakes =
+          isMistakeDebounced ? state.mistakes : state.mistakes + 1;
       final isFailed = newMistakes >= 3;
 
       state = state.copyWith(
@@ -164,10 +185,8 @@ class GameController extends StateNotifier<GameState> {
     _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
 
-    // 350 ms stillness after last exit before showing complete sheet
-    _completeTimer = Timer(const Duration(milliseconds: 350), () {
-      if (!mounted) return;
-
+    void completeNow() {
+      if (!mounted || state.status != GameStatus.playing) return;
       final stars = GameState.calculateStars(state.mistakes);
       state = state.copyWith(
         status: GameStatus.completed,
@@ -185,6 +204,13 @@ class GameController extends StateNotifier<GameState> {
       );
 
       streakRepo?.recordQualifyingPlay(null, notificationService);
+    }
+
+    // 350 ms stillness after last exit before showing complete sheet
+    _completeTimer = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted || state.status != GameStatus.playing) return;
+      animator.finalizeAllRunningAnimations();
+      completeNow();
     });
   }
 
@@ -233,6 +259,7 @@ class GameController extends StateNotifier<GameState> {
     _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
     feedbackController.cancel();
+    animator.finalizeAllRunningAnimations();
     final allIds = {for (final t in state.level.threads) t.id};
 
     _boardState.active.clear();
@@ -281,6 +308,8 @@ class GameController extends StateNotifier<GameState> {
     _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
     feedbackController.dispose();
+    animator.finalizeAllRunningAnimations();
+    gameStateNotifier.dispose();
     if (mounted) {
       super.dispose();
     }

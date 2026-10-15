@@ -75,11 +75,16 @@ void main() {
       expect(startGeom.headPosition.dy, closeTo(4 * cellSize, 1e-3));
       expect(startGeom.headAngleRad, closeTo(math.pi / 2.0, 1e-3)); // Down
 
-      // As extraction progresses, head advances downwards monotonically
-      var prevHeadY = startGeom.headPosition.dy;
-      var prevDisplacement = 0.0;
+      // Spec 13 anticipation: thread pulls back gently during [0, 0.2], then advances downwards
+      final dipGeom = track.sample(0.10);
+      expect(dipGeom.displacementPx, lessThan(0.0)); // Negative displacement (pull back)
+      expect(dipGeom.headPosition.dy, lessThanOrEqualTo(startGeom.headPosition.dy + 1e-6));
 
-      for (var i = 1; i <= 20; i++) {
+      // After anticipation (from progress = 0.25 onward), head advances downwards monotonically
+      var prevHeadY = track.sample(0.25).headPosition.dy;
+      var prevDisplacement = track.sample(0.25).displacementPx;
+
+      for (var i = 6; i <= 20; i++) {
         final progress = i / 20.0;
         final geom = track.sample(progress);
         expect(geom.headPosition.dy, greaterThanOrEqualTo(prevHeadY - 1e-6));

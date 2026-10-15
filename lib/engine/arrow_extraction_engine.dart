@@ -3,17 +3,27 @@ import 'dart:ui' as ui;
 
 import 'package:arrowtapout/engine/dir.dart';
 import 'package:arrowtapout/engine/thread.dart';
-import 'package:flutter/animation.dart';
 
-/// Pure mathematical evaluation for the extraction displacement along the track.
+/// Pure mathematical evaluation for the extraction displacement along the track per Spec 13:
+///
+/// p(u) = D * u^2.2 - A * sin^2(pi * min(u / 0.20, 1))
 double calculateExitDisplacement({
   required double u,
   required double totalDistanceD,
   double anticipationA = 0.0,
 }) {
   final clampedU = u.clamp(0.0, 1.0);
-  final eased = Curves.easeInOutCubic.transform(clampedU);
-  return totalDistanceD * eased;
+  final mainSlide = totalDistanceD * math.pow(clampedU, 2.2);
+
+  if (anticipationA <= 0.0) {
+    return mainSlide;
+  }
+
+  final waveT = math.min(clampedU / 0.20, 1.0);
+  final s = math.sin(math.pi * waveT);
+  final anticipation = anticipationA * (s * s);
+
+  return mainSlide - anticipation;
 }
 
 /// Instantaneous geometric state of an arrow being extracted along its path.
@@ -36,7 +46,7 @@ class ExtractedGeometry {
   /// The orientation of the arrowhead in radians (tangent of the path).
   final double headAngleRad;
 
-  /// Opacity multiplier for the thread (fades out as it clears the screen).
+  /// Opacity multiplier for the thread (fades out over u from 0.85 to 1.0).
   final double alpha;
 
   /// Whether the arrow has completely exited the visible viewport.
@@ -48,7 +58,8 @@ class ExtractedGeometry {
 
 /// A pre-computed, continuous extraction track for an arrow polyline.
 ///
-/// Follows the complete piecewise trajectory from tail -> head -> exit ray -> off-screen boundary.
+/// Extended path per Spec 13:
+/// Virtual backward stub (0.3*cell) -> thread body -> straight ray -> (0.6*cell + L) extra straight run.
 class ExtractionTrack {
   ExtractionTrack({
     required this.thread,
@@ -69,6 +80,8 @@ class ExtractionTrack {
   late final double threadLengthPx;
   late final double rayLengthPx;
   late final double totalDistanceD;
+  late final double anticipationA;
+  late final double stubLengthPx;
   late final double durationMs;
 
   void _buildTrack() {
@@ -82,15 +95,29 @@ class ExtractionTrack {
       Dir.right => (cols - 1 - head.c) * cellSize,
     };
 
-    // Extra distance beyond lattice boundary to guarantee full tail exit
-    final extraRun = 1.6 * cellSize + threadLengthPx;
+    // Spec 13: D = ray + L + 0.6*cell, A = 0.16*cell
+    final extraRun = 0.6 * cellSize + threadLengthPx;
     totalDistanceD = rayLengthPx + extraRun;
+    anticipationA = 0.16 * cellSize;
+    stubLengthPx = 0.3 * cellSize;
+
+    // Spec 13: T = clamp(300ms + 9ms * (D / cell), 340ms, 820ms)
+    durationMs = (300.0 + 9.0 * (totalDistanceD / cellSize)).clamp(340.0, 820.0);
 
     // Build the continuous polyline track:
-    // Tail -> internal vertices -> Head -> Grid edge -> Off-screen infinity
+    // Virtual backward stub (0.3*cell) -> tail -> vertices -> head -> grid edge -> extra run
     fullTrackPath = ui.Path();
-    final first = thread.cells.first;
-    fullTrackPath.moveTo(first.c * cellSize, first.r * cellSize);
+
+    final c0 = thread.cells[0];
+    final c1 = thread.cells[1];
+    final stubDirX = (c0.c - c1.c).toDouble().sign;
+    final stubDirY = (c0.r - c1.r).toDouble().sign;
+
+    final stubX = c0.c * cellSize + stubDirX * stubLengthPx;
+    final stubY = c0.r * cellSize + stubDirY * stubLengthPx;
+
+    fullTrackPath.moveTo(stubX, stubY);
+    fullTrackPath.lineTo(c0.c * cellSize, c0.r * cellSize);
 
     for (var i = 1; i < thread.cells.length; i++) {
       final c = thread.cells[i];
@@ -117,22 +144,17 @@ class ExtractionTrack {
 
     final metrics = fullTrackPath.computeMetrics().toList();
     trackMetric = metrics.first;
-
-    // Calibrated natural duration: 300ms to 420ms based on total exit travel
-    durationMs =
-        (300.0 + 6.0 * (totalDistanceD / cellSize)).clamp(320.0, 440.0);
   }
 
   /// Samples the path-aware extracted geometry at normalized animation progress [progress] (0.0 to 1.0).
   ExtractedGeometry sample(
     double progress, {
     bool reduceMotion = false,
-    Curve curve = Curves.easeInOutCubic,
   }) {
     final clampedProgress = progress.clamp(0.0, 1.0);
 
     if (reduceMotion) {
-      // In reduced motion mode, fade the stationary polyline in place
+      // In reduced motion mode, linear slide with fade
       final alpha = (1.0 - clampedProgress).clamp(0.0, 1.0);
       final head = thread.head;
       final headPos = ui.Offset(head.c * cellSize, head.r * cellSize);
@@ -156,20 +178,23 @@ class ExtractionTrack {
       );
     }
 
-    final eased = curve.transform(clampedProgress);
-    final exitTravel = trackMetric.length - threadLengthPx;
-    final displacement = eased * exitTravel;
+    final p = calculateExitDisplacement(
+      u: clampedProgress,
+      totalDistanceD: totalDistanceD,
+      anticipationA: anticipationA,
+    );
 
-    final startOffset = displacement.clamp(0.0, trackMetric.length);
+    // Visible window is [stubLength + p, stubLength + p + L] along extended path
+    final startOffset = (stubLengthPx + p).clamp(0.0, trackMetric.length);
     final endOffset =
-        (displacement + threadLengthPx).clamp(0.0, trackMetric.length);
+        (stubLengthPx + p + threadLengthPx).clamp(0.0, trackMetric.length);
 
-    // Extract the exact continuous sub-path polyline
+    // Extract continuous sub-path polyline
     final visiblePath = (endOffset > startOffset)
         ? trackMetric.extractPath(startOffset, endOffset)
         : ui.Path();
 
-    // Sample the exact tangent coordinate and orientation for the leading arrowhead
+    // Sample tangent for chevron arrowhead
     final sampleOffset = endOffset.clamp(0.001, trackMetric.length - 0.001);
     final tangent = trackMetric.getTangentForOffset(sampleOffset);
 
@@ -180,9 +205,9 @@ class ExtractionTrack {
         ? math.atan2(tangent.vector.dy, tangent.vector.dx)
         : _dirToAngle(thread.dir);
 
-    // Smooth alpha fadeout in the final 25% of the slide
-    final alpha = clampedProgress >= 0.75
-        ? ((1.0 - clampedProgress) / 0.25).clamp(0.0, 1.0)
+    // Spec 13: Fade alpha multiplies 1 to 0 over u from 0.85 to 1.0
+    final alpha = clampedProgress >= 0.85
+        ? ((1.0 - clampedProgress) / 0.15).clamp(0.0, 1.0)
         : 1.0;
 
     return ExtractedGeometry(
@@ -191,7 +216,7 @@ class ExtractionTrack {
       headAngleRad: headAngle,
       alpha: alpha,
       isCompleted: clampedProgress >= 1.0,
-      displacementPx: displacement,
+      displacementPx: p,
     );
   }
 

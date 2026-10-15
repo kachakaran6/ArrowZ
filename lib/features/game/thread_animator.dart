@@ -38,6 +38,8 @@ class ThreadGeometry {
   final ExtractionTrack track;
 
   late final ui.Path basePath;
+  late final ui.Offset headOffset;
+  late final double headAngle;
 
   void _buildBasePath() {
     basePath = ui.Path();
@@ -47,6 +49,13 @@ class ThreadGeometry {
       final c = thread.cells[i];
       basePath.lineTo(c.c * cellSize, c.r * cellSize);
     }
+    headOffset = ui.Offset(thread.head.c * cellSize, thread.head.r * cellSize);
+    headAngle = switch (thread.dir) {
+      Dir.right => 0.0,
+      Dir.down => math.pi / 2.0,
+      Dir.left => math.pi,
+      Dir.up => -math.pi / 2.0,
+    };
   }
 }
 
@@ -306,6 +315,26 @@ class BoardAnimator extends ChangeNotifier {
 
   void cancelWrongMoves() {
     wrongMoves.clear();
+    notifyListeners();
+  }
+
+  /// Instantly finalizes all running animations (exits, blockeds, wrong moves)
+  /// and stops the ticker so no animations survive transitions, restarts, or pauses.
+  void finalizeAllRunningAnimations() {
+    exits.clear();
+    blockeds.clear();
+    wrongMoves.clear();
+    hintedThreadId = null;
+    hintStartTimeMs = null;
+    enterStartTimeMs = null;
+    if (_ticker.isActive) {
+      _ticker.stop();
+    }
+    Diagnostics.instance.updateAnimationStats(
+      exiting: 0,
+      bouncing: 0,
+      oldestAgeMs: 0.0,
+    );
     notifyListeners();
   }
 

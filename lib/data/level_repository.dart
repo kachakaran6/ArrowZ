@@ -1,8 +1,19 @@
 import 'dart:convert';
 
 import 'package:arrowtapout/engine/level.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+List<Level> _parseChapterJson((String, int) args) {
+  final (jsonStr, chapterNumber) = args;
+  final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+  final levelsRaw = map['levels'] as List<dynamic>;
+  return levelsRaw
+      .map((r) =>
+          Level.fromJson(r as Map<String, dynamic>, chapter: chapterNumber))
+      .toList(growable: false);
+}
 
 class LevelRepository {
   final Map<int, List<Level>> _chapterCache = {};
@@ -16,13 +27,7 @@ class LevelRepository {
     final numStr = chapterNumber.toString().padLeft(2, '0');
     final assetPath = 'assets/levels/chapter_$numStr.json';
     final jsonStr = await rootBundle.loadString(assetPath);
-    final map = jsonDecode(jsonStr) as Map<String, dynamic>;
-    final levelsRaw = map['levels'] as List<dynamic>;
-
-    final levels = levelsRaw
-        .map((r) =>
-            Level.fromJson(r as Map<String, dynamic>, chapter: chapterNumber))
-        .toList(growable: false);
+    final levels = await compute(_parseChapterJson, (jsonStr, chapterNumber));
 
     _chapterCache[chapterNumber] = levels;
 
@@ -39,12 +44,7 @@ class LevelRepository {
       final numStr = chapterNumber.toString().padLeft(2, '0');
       final assetPath = 'assets/levels/chapter_$numStr.json';
       final jsonStr = await rootBundle.loadString(assetPath);
-      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final levelsRaw = map['levels'] as List<dynamic>;
-      final levels = levelsRaw
-          .map((r) =>
-              Level.fromJson(r as Map<String, dynamic>, chapter: chapterNumber))
-          .toList(growable: false);
+      final levels = await compute(_parseChapterJson, (jsonStr, chapterNumber));
       _chapterCache[chapterNumber] = levels;
     } catch (_) {
       // Ignored in background preload

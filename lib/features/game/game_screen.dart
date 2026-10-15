@@ -44,7 +44,7 @@ class GameScreen extends ConsumerStatefulWidget {
 }
 
 class _GameScreenState extends ConsumerState<GameScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late BoardAnimator _animator;
   GameController? _controller;
   Level? _level;
@@ -56,8 +56,18 @@ class _GameScreenState extends ConsumerState<GameScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _animator = BoardAnimator(vsync: this);
     _loadLevel();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _animator.finalizeAllRunningAnimations();
+    } else if (state == AppLifecycleState.resumed) {
+      ref.read(soundServiceProvider).onResume();
+    }
   }
 
   Future<void> _loadLevel() async {
@@ -85,8 +95,13 @@ class _GameScreenState extends ConsumerState<GameScreen>
         coachMarkShown: coachShown,
       );
 
-      controller.addListener((_) {
-        if (mounted) setState(() {});
+      controller.addListener((state) {
+        if (!mounted) return;
+        if (state.status == GameStatus.completed && !_sheetOpen) {
+          _showCompleteSheet(state);
+        } else if (state.status == GameStatus.failed && !_sheetOpen) {
+          _showFailedSheet(state);
+        }
       });
 
       if (mounted) {
@@ -112,6 +127,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _animator.finalizeAllRunningAnimations();
     _controller?.dispose();
     _animator.dispose();
     super.dispose();
@@ -123,6 +140,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
     if (_isNavigating) return;
     _isNavigating = true;
 
+    _animator.finalizeAllRunningAnimations();
     ref.read(hapticsServiceProvider).selection();
     _sheetOpen = false;
     if (context.canPop()) {
@@ -316,6 +334,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
     ];
     final chName = chapterNames[state.level.chapter - 1];
 
+    // Preload next level in background while Complete sheet is showing
+    unawaited(ref.read(levelRepositoryProvider).loadLevel(state.level.id + 1));
+
     showModalBottomSheet(
       context: context,
       isDismissible: false,
@@ -329,10 +350,12 @@ class _GameScreenState extends ConsumerState<GameScreen>
         mistakes: state.mistakes,
         onNextLevel: () {
           _sheetOpen = false;
+          _animator.finalizeAllRunningAnimations();
           context.pushReplacement(Routes.play(state.level.id + 1));
         },
         onLevels: () {
           _sheetOpen = false;
+          _animator.finalizeAllRunningAnimations();
           context.go(Routes.levels);
         },
       ),
@@ -495,9 +518,13 @@ class _GameScreenState extends ConsumerState<GameScreen>
                         ),
 
                       // Centre: Heart life indicator (3 lives: red = active, white = lost)
-                      HeartLifeIndicator(
-                        remainingLives: gameState.remainingLives,
-                        reduceMotion: reduceMotion,
+                      ListenableBuilder(
+                        listenable: _controller!.gameStateNotifier,
+                        builder: (context, _) => HeartLifeIndicator(
+                          remainingLives:
+                              _controller!.currentState.remainingLives,
+                          reduceMotion: reduceMotion,
+                        ),
                       ),
 
                       // Right: Replay button + Hint button (top-right corner)
@@ -542,39 +569,51 @@ class _GameScreenState extends ConsumerState<GameScreen>
                   horizontal: ComponentTokens.pagePadding,
                   vertical: Primitives.space8,
                 ),
-                child: LevelProgressBar(
-                  key: const Key('level_progress_bar'),
-                  progress: gameState.progress,
-                  reduceMotion: reduceMotion,
+                child: ListenableBuilder(
+                  listenable: _controller!.gameStateNotifier,
+                  builder: (context, _) {
+                    Diagnostics.instance.recordHeaderCounterRebuild();
+                    return LevelProgressBar(
+                      key: const Key('level_progress_bar'),
+                      progress: _controller!.currentState.progress,
+                      reduceMotion: reduceMotion,
+                    );
+                  },
                 ),
               ),
 
               // Coach Mark (Level 1)
-              if (gameState.showCoachMark)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: ComponentTokens.pagePadding,
-                    vertical: Primitives.space8,
-                  ),
-                  child: Text(
-                    'Tap a thread that has a clear path.',
-                    style: tokens.typography.body.copyWith(
-                      color: tokens.accent,
-                      fontWeight: FontWeight.w600,
+              ListenableBuilder(
+                listenable: _controller!.gameStateNotifier,
+                builder: (context, _) {
+                  if (!_controller!.currentState.showCoachMark) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: ComponentTokens.pagePadding,
+                      vertical: Primitives.space8,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+                    child: Text(
+                      'Tap a thread that has a clear path.',
+                      style: tokens.typography.body.copyWith(
+                        color: tokens.accent,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                },
+              ),
 
               // --- 3. Board Region ---
               Expanded(
                 child: BoardView(
                   level: _level!,
-                  activeIds: gameState.activeIds,
+                  getActiveIds: () => _controller!.currentState.activeIds,
                   animator: _animator,
                   reduceMotion: reduceMotion,
-                  interactive:
-                      !_sheetOpen && gameState.status == GameStatus.playing,
+                  interactive: !_sheetOpen,
                   onThreadTap: (id) {
                     final dpr = MediaQuery.devicePixelRatioOf(context);
                     final cellSize = ComponentTokens.computeLatticeCellSize(
@@ -586,7 +625,6 @@ class _GameScreenState extends ConsumerState<GameScreen>
                       devicePixelRatio: dpr,
                     );
                     _controller?.handleThreadTap(id, cellSize);
-                    setState(() {});
                   },
                 ),
               ),

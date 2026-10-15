@@ -346,11 +346,11 @@ void main() {
       controller.handleThreadTap(1, 24.0);
       controller.handleThreadTap(1, 24.0);
 
-      // Debounce window filters rapid repeat on the same arrow
-      expect(events.length, equals(1));
+      // Mistakes debounced per Spec 03 (consecutive taps on same blocked thread count as 1 mistake)
       expect(controller.state.mistakes, equals(1));
-      expect(spyHaptics.heavyCount, equals(1));
-      expect(spyAudio.blockPlayCount, equals(1));
+      // Audio plays on every tap (no debouncing)
+      expect(spyAudio.blockPlayCount, equals(3));
+      expect(events.length, equals(3));
 
       // Replacing animation state calculates fresh from nowMs without accumulated offset
       final wrongMove = animator.wrongMoves[1]!;

@@ -66,7 +66,6 @@ class WrongMoveFeedbackController {
   final List<void Function(WrongMoveEvent)> _listeners = [];
 
   double _lastHapticTimeMs = 0.0;
-  double _lastAudioTimeMs = 0.0;
   double _lastSemanticsTimeMs = 0.0;
 
   int _eventCount = 0;
@@ -111,11 +110,8 @@ class WrongMoveFeedbackController {
       unawaited(haptics.heavy());
     }
 
-    // 3. Dispatch audio error effect immediately (non-blocking).
-    if (nowMs - _lastAudioTimeMs >= audioRateLimitMs) {
-      _lastAudioTimeMs = nowMs;
-      audio.playBlock();
-    }
+    // 3. Dispatch audio error effect immediately on EVERY tap (non-blocking).
+    audio.playBlock();
 
     // 4. Start visual shake and red highlight presentation on the selected arrow.
     animator.triggerWrongMove(

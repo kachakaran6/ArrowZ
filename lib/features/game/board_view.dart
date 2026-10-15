@@ -13,7 +13,8 @@ class BoardView extends StatefulWidget {
   const BoardView({
     super.key,
     required this.level,
-    required this.activeIds,
+    this.activeIds = const {},
+    this.getActiveIds,
     required this.animator,
     required this.onThreadTap,
     this.reduceMotion = false,
@@ -22,6 +23,7 @@ class BoardView extends StatefulWidget {
 
   final Level level;
   final Set<int> activeIds;
+  final Set<int> Function()? getActiveIds;
   final BoardAnimator animator;
   final ValueChanged<int> onThreadTap;
   final bool reduceMotion;
@@ -69,6 +71,9 @@ class _BoardViewState extends State<BoardView> {
     _activePointers.remove(event.pointer);
   }
 
+  Set<int> get _effectiveActiveIds =>
+      widget.getActiveIds?.call() ?? widget.activeIds;
+
   void _handlePointerUp(
       PointerUpEvent event, double cellSize, double hitPadding) {
     Diagnostics.instance.recordPointerUp();
@@ -97,12 +102,13 @@ class _BoardViewState extends State<BoardView> {
       return;
     }
 
+    final currentActive = _effectiveActiveIds;
     final boardLocalPos =
         event.localPosition - Offset(hitPadding, hitPadding);
     final hitId = _hitTester.hitTest(
       localPosition: boardLocalPos,
       cellSize: cellSize,
-      activeThreadIds: widget.activeIds,
+      activeThreadIds: currentActive,
     );
 
     if (hitId == null) {
@@ -111,7 +117,7 @@ class _BoardViewState extends State<BoardView> {
       return;
     }
 
-    if (!widget.activeIds.contains(hitId)) {
+    if (!currentActive.contains(hitId)) {
       Diagnostics.instance
           .recordTapRejected(TapRejectedReason.threadAlreadyGone);
       return;
@@ -160,13 +166,16 @@ class _BoardViewState extends State<BoardView> {
               width: boardW,
               height: boardH,
               child: Semantics(
-                label: 'Puzzle board, ${widget.activeIds.length} threads left',
+                label: 'Puzzle board',
                 child: RepaintBoundary(
                   child: CustomPaint(
                     size: Size(boardW, boardH),
+                    isComplex: true,
+                    willChange: true,
                     painter: BoardPainter(
                       level: widget.level,
                       activeIds: widget.activeIds,
+                      getActiveIds: widget.getActiveIds,
                       cellSize: cellSize,
                       tokens: tokens,
                       animator: widget.animator,

@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/component_tokens.dart';
 import 'package:arrowtapout/engine/cell.dart';
-import 'package:arrowtapout/engine/dir.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/thread_animator.dart';
 import 'package:flutter/material.dart';
@@ -81,7 +80,8 @@ void drawChevronArrowhead({
 class BoardPainter extends CustomPainter {
   BoardPainter({
     required this.level,
-    required this.activeIds,
+    this.activeIds = const {},
+    this.getActiveIds,
     required this.cellSize,
     required this.tokens,
     required this.animator,
@@ -91,11 +91,14 @@ class BoardPainter extends CustomPainter {
 
   final Level level;
   final Set<int> activeIds;
+  final Set<int> Function()? getActiveIds;
   final double cellSize;
   final AppTokens tokens;
   final BoardAnimator animator;
   final bool reduceMotion;
   final Set<Cell> _maskAdjacentNodes;
+
+  Set<int> get _effectiveActiveIds => getActiveIds?.call() ?? activeIds;
 
   final Paint _threadPaint = Paint()
     ..style = PaintingStyle.stroke
@@ -115,9 +118,103 @@ class BoardPainter extends CustomPainter {
     ..strokeJoin = StrokeJoin.round
     ..isAntiAlias = true;
 
-  final Paint _dotPaint = Paint()
+  final ui.Path _arrowPath = ui.Path();
+  final Paint _arrowFillPaint = Paint()
     ..style = PaintingStyle.fill
     ..isAntiAlias = true;
+  final Paint _arrowStrokePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..isAntiAlias = true;
+
+  ui.Picture? _latticePicture;
+
+  void _ensureLatticePicture(double dotRadius) {
+    if (_latticePicture != null) return;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final dotPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = tokens.gridDot
+      ..isAntiAlias = true;
+
+    if (level.shape == 'rect') {
+      for (var r = 0; r < level.rows; r++) {
+        for (var c = 0; c < level.cols; c++) {
+          canvas.drawCircle(
+            Offset(c * cellSize, r * cellSize),
+            dotRadius,
+            dotPaint,
+          );
+        }
+      }
+    } else {
+      for (final cell in _maskAdjacentNodes) {
+        canvas.drawCircle(
+          Offset(cell.c * cellSize, cell.r * cellSize),
+          dotRadius,
+          dotPaint,
+        );
+      }
+    }
+    _latticePicture = recorder.endRecording();
+  }
+
+  void _renderChevronArrowhead({
+    required ui.Canvas canvas,
+    required ui.Offset headPoint,
+    required double angleRad,
+    required double armLengthPx,
+    required ui.Paint paint,
+    ui.Paint? shadowPaint,
+  }) {
+    final noseDist = armLengthPx * 0.45;
+    final wingDist = armLengthPx * 0.70;
+    const wingAngle = 142.0 * math.pi / 180.0;
+    final notchDist = armLengthPx * 0.10;
+
+    final tip = ui.Offset(
+      headPoint.dx + math.cos(angleRad) * noseDist,
+      headPoint.dy + math.sin(angleRad) * noseDist,
+    );
+
+    final leftWing = ui.Offset(
+      headPoint.dx + math.cos(angleRad - wingAngle) * wingDist,
+      headPoint.dy + math.sin(angleRad - wingAngle) * wingDist,
+    );
+
+    final rightWing = ui.Offset(
+      headPoint.dx + math.cos(angleRad + wingAngle) * wingDist,
+      headPoint.dy + math.sin(angleRad + wingAngle) * wingDist,
+    );
+
+    final notch = ui.Offset(
+      headPoint.dx - math.cos(angleRad) * notchDist,
+      headPoint.dy - math.sin(angleRad) * notchDist,
+    );
+
+    _arrowPath.reset();
+    _arrowPath.moveTo(tip.dx, tip.dy);
+    _arrowPath.lineTo(leftWing.dx, leftWing.dy);
+    _arrowPath.lineTo(notch.dx, notch.dy);
+    _arrowPath.lineTo(rightWing.dx, rightWing.dy);
+    _arrowPath.close();
+
+    if (shadowPaint != null) {
+      canvas.save();
+      canvas.translate(0, 2.0);
+      canvas.drawPath(_arrowPath, shadowPaint);
+      canvas.restore();
+    }
+
+    _arrowFillPaint.color = paint.color;
+    canvas.drawPath(_arrowPath, _arrowFillPaint);
+
+    _arrowStrokePaint.color = paint.color;
+    _arrowStrokePaint.strokeWidth = math.max(1.5, paint.strokeWidth * 0.35);
+    canvas.drawPath(_arrowPath, _arrowStrokePaint);
+  }
 
   static Set<Cell> _computeMaskNodes(Level level) {
     if (level.shape == 'rect') {
@@ -153,34 +250,17 @@ class BoardPainter extends CustomPainter {
     _shadowPaint.strokeWidth = strokeWidth + 0.8;
     _shadowPaint.color = tokens.ink.withValues(alpha: 0.12);
     _shadowPaint.maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-    _dotPaint.color = tokens.gridDot;
 
-    // 1. Draw lattice grid dots
-    if (level.shape == 'rect') {
-      for (var r = 0; r < level.rows; r++) {
-        for (var c = 0; c < level.cols; c++) {
-          canvas.drawCircle(
-            Offset(c * cellSize, r * cellSize),
-            dotRadius,
-            _dotPaint,
-          );
-        }
-      }
-    } else {
-      for (final cell in _maskAdjacentNodes) {
-        canvas.drawCircle(
-          Offset(cell.c * cellSize, cell.r * cellSize),
-          dotRadius,
-          _dotPaint,
-        );
-      }
-    }
+    // 1. Draw lattice grid dots (recorded once into ui.Picture, 0 per-frame overhead)
+    _ensureLatticePicture(dotRadius);
+    canvas.drawPicture(_latticePicture!);
 
     // 2. Hint outline under hinted thread
+    final currentActive = _effectiveActiveIds;
     final hintedId = animator.hintedThreadId;
     if (hintedId != null && animator.hintStartTimeMs != null) {
       final geom = animator.geometries[hintedId];
-      if (geom != null && activeIds.contains(hintedId)) {
+      if (geom != null && currentActive.contains(hintedId)) {
         final elapsed = nowMs - animator.hintStartTimeMs!;
         var pulse = 0.55 +
             0.45 * (0.5 + 0.5 * math.sin((elapsed / 1600.0) * 2 * math.pi));
@@ -200,7 +280,7 @@ class BoardPainter extends CustomPainter {
     // 3. Pass 1: Ambient Drop Shadows for all active/exiting pieces
     for (final thread in level.threads) {
       final tid = thread.id;
-      final isActive = activeIds.contains(tid);
+      final isActive = currentActive.contains(tid);
       final activeExit = animator.exits[tid];
       final geom = animator.geometries[tid];
       if (geom == null || (!isActive && activeExit == null)) continue;
@@ -237,7 +317,7 @@ class BoardPainter extends CustomPainter {
     var threadIndex = 0;
     for (final thread in level.threads) {
       final tid = thread.id;
-      final isActive = activeIds.contains(tid);
+      final isActive = currentActive.contains(tid);
       final activeExit = animator.exits[tid];
       final activeWrongMove = animator.wrongMoves[tid];
       final geom = animator.geometries[tid];
@@ -254,7 +334,7 @@ class BoardPainter extends CustomPainter {
             tokens.thread.withValues(alpha: tokens.thread.a * extracted.alpha);
 
         canvas.drawPath(extracted.visiblePath, _threadPaint);
-        drawChevronArrowhead(
+        _renderChevronArrowhead(
           canvas: canvas,
           headPoint: extracted.headPosition,
           angleRad: extracted.headAngleRad,
@@ -268,18 +348,14 @@ class BoardPainter extends CustomPainter {
         _threadPaint.color =
             Color.lerp(tokens.thread, tokens.danger, dangerLerp)!;
 
-        final headNode = thread.head;
-        final headPoint = Offset(headNode.c * cellSize, headNode.r * cellSize);
-        final angle = _dirToAngle(thread.dir);
-
         canvas.save();
         canvas.translate(offset.dx, offset.dy);
 
         canvas.drawPath(geom.basePath, _threadPaint);
-        drawChevronArrowhead(
+        _renderChevronArrowhead(
           canvas: canvas,
-          headPoint: headPoint,
-          angleRad: angle,
+          headPoint: geom.headOffset,
+          angleRad: geom.headAngle,
           armLengthPx: armLength,
           paint: _threadPaint,
         );
@@ -296,10 +372,6 @@ class BoardPainter extends CustomPainter {
           }
         }
 
-        final headNode = thread.head;
-        final headPoint = Offset(headNode.c * cellSize, headNode.r * cellSize);
-        final angle = _dirToAngle(thread.dir);
-
         if (activeBlocked != null) {
           // Blocked tapped thread: elastic spring bump
           final dispPx = activeBlocked.displacementPx(nowMs);
@@ -314,10 +386,10 @@ class BoardPainter extends CustomPainter {
           );
 
           canvas.drawPath(geom.basePath, _threadPaint);
-          drawChevronArrowhead(
+          _renderChevronArrowhead(
             canvas: canvas,
-            headPoint: headPoint,
-            angleRad: angle,
+            headPoint: geom.headOffset,
+            angleRad: geom.headAngle,
             armLengthPx: armLength,
             paint: _threadPaint,
           );
@@ -339,10 +411,10 @@ class BoardPainter extends CustomPainter {
 
           if (entrance >= 1.0) {
             canvas.drawPath(geom.basePath, _threadPaint);
-            drawChevronArrowhead(
+            _renderChevronArrowhead(
               canvas: canvas,
-              headPoint: headPoint,
-              angleRad: angle,
+              headPoint: geom.headOffset,
+              angleRad: geom.headAngle,
               armLengthPx: armLength,
               paint: _threadPaint,
             );
@@ -351,10 +423,10 @@ class BoardPainter extends CustomPainter {
             _threadPaint.color = _threadPaint.color
                 .withValues(alpha: _threadPaint.color.a * alpha);
             canvas.drawPath(geom.basePath, _threadPaint);
-            drawChevronArrowhead(
+            _renderChevronArrowhead(
               canvas: canvas,
-              headPoint: headPoint,
-              angleRad: angle,
+              headPoint: geom.headOffset,
+              angleRad: geom.headAngle,
               armLengthPx: armLength,
               paint: _threadPaint,
             );
@@ -365,13 +437,6 @@ class BoardPainter extends CustomPainter {
       threadIndex++;
     }
   }
-
-  double _dirToAngle(Dir dir) => switch (dir) {
-        Dir.right => 0.0,
-        Dir.down => math.pi / 2.0,
-        Dir.left => math.pi,
-        Dir.up => -math.pi / 2.0,
-      };
 
   @override
   bool shouldRepaint(covariant BoardPainter oldDelegate) {
