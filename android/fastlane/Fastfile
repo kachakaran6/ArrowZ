@@ -71,9 +71,19 @@ platform :android do
   # ─────────────────────────────────────────────────────────────────────────────
   # Flutter Build Helpers
   # ─────────────────────────────────────────────────────────────────────────────
-  def build_flutter_aab(build_num)
+  def build_flutter_aab(build_num, options = {})
+    if options[:aab] && File.exist?(options[:aab])
+      UI.success("📦 Using specified App Bundle at: #{options[:aab]}")
+      return options[:aab]
+    end
+
     root_dir = File.expand_path("../..", __dir__)
     aab_path = File.join(root_dir, "build", "app", "outputs", "bundle", "release", "app-release.aab")
+
+    if options[:skip_build] && File.exist?(aab_path)
+      UI.success("⏩ Skipping compilation (skip_build: true). Using existing AAB at: #{aab_path}")
+      return aab_path
+    end
 
     UI.message("📦 Building Flutter App Bundle (build number: #{build_num})...")
     Dir.chdir(root_dir) do
@@ -177,7 +187,7 @@ platform :android do
   desc "Build Android App Bundle (AAB) without uploading"
   lane :build do |options|
     build_num = get_target_build_number(options)
-    aab_path = build_flutter_aab(build_num)
+    aab_path = build_flutter_aab(build_num, options)
     UI.success("🎉 Successfully built release AAB for build ##{build_num}: #{aab_path}")
   end
 
@@ -191,7 +201,7 @@ platform :android do
   desc "Build and upload AAB to Google Play Internal track + Git version archive"
   lane :internal do |options|
     build_num = get_target_build_number(options)
-    aab_path = build_flutter_aab(build_num)
+    aab_path = build_flutter_aab(build_num, options)
     key_file = resolve_json_key_file
 
     upload_to_play_store(
@@ -212,7 +222,7 @@ platform :android do
   lane :closed do |options|
     build_num = get_target_build_number(options)
     track_name = options[:track] || "Alpha-1"
-    aab_path = build_flutter_aab(build_num)
+    aab_path = build_flutter_aab(build_num, options)
     key_file = resolve_json_key_file
 
     upload_to_play_store(
@@ -232,7 +242,7 @@ platform :android do
   desc "Build and upload AAB to Google Play Open Testing (Beta) track + Git version archive"
   lane :beta do |options|
     build_num = get_target_build_number(options)
-    aab_path = build_flutter_aab(build_num)
+    aab_path = build_flutter_aab(build_num, options)
     key_file = resolve_json_key_file
 
     upload_to_play_store(
@@ -253,7 +263,7 @@ platform :android do
   lane :production do |options|
     build_num = get_target_build_number(options)
     rollout = options[:rollout] ? options[:rollout].to_f : nil
-    aab_path = build_flutter_aab(build_num)
+    aab_path = build_flutter_aab(build_num, options)
     key_file = resolve_json_key_file
 
     upload_params = {
