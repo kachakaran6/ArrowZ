@@ -1,4 +1,5 @@
 import 'package:arrowtapout/engine/cell.dart';
+import 'package:arrowtapout/engine/deflector.dart';
 import 'package:arrowtapout/engine/thread.dart';
 
 /// Immutable representation of a puzzle level.
@@ -11,7 +12,9 @@ class Level {
     this.shape = 'rect',
     this.par = 0,
     int? chapter,
+    List<Deflector> deflectors = const [],
   })  : threads = List.unmodifiable(threads),
+        deflectors = List.unmodifiable(deflectors),
         chapter = chapter ?? ((id - 1) ~/ 20 + 1);
 
   final int id;
@@ -21,6 +24,7 @@ class Level {
   final int par;
   final int chapter;
   final List<Thread> threads;
+  final List<Deflector> deflectors;
 
   /// Number of threads in this level.
   int get threadCount => threads.length;
@@ -62,12 +66,31 @@ class Level {
 
     final threads = <Thread>[];
     for (var i = 0; i < rawThreads.length; i++) {
-      final rawCoords = rawThreads[i] as List<dynamic>;
-      final cells = rawCoords.map((coord) {
-        final pair = coord as List<dynamic>;
-        return Cell(pair[0] as int, pair[1] as int);
-      }).toList(growable: false);
-      threads.add(Thread(i + 1, cells));
+      final raw = rawThreads[i];
+      if (raw is Map<String, dynamic>) {
+        final rawCoords = raw['cells'] as List<dynamic>;
+        final cells = rawCoords.map((coord) {
+          final pair = coord as List<dynamic>;
+          return Cell(pair[0] as int, pair[1] as int);
+        }).toList(growable: false);
+        final colorGroup = raw['colorGroup'] as int?;
+        threads.add(Thread(i + 1, cells, colorGroup: colorGroup));
+      } else {
+        final rawCoords = raw as List<dynamic>;
+        final cells = rawCoords.map((coord) {
+          final pair = coord as List<dynamic>;
+          return Cell(pair[0] as int, pair[1] as int);
+        }).toList(growable: false);
+        threads.add(Thread(i + 1, cells));
+      }
+    }
+
+    final deflectors = <Deflector>[];
+    if (json.containsKey('deflectors')) {
+      final rawDeflectors = json['deflectors'] as List<dynamic>;
+      for (final raw in rawDeflectors) {
+        deflectors.add(Deflector.fromJson(raw as Map<String, dynamic>));
+      }
     }
 
     return Level(
@@ -78,6 +101,7 @@ class Level {
       shape: shape,
       par: par,
       chapter: chapter,
+      deflectors: deflectors,
     );
   }
 
@@ -89,9 +113,17 @@ class Level {
       'cols': cols,
       'shape': shape,
       'par': par,
-      'threads': threads
-          .map((t) => t.cells.map((c) => [c.r, c.c]).toList(growable: false))
-          .toList(growable: false),
+      'threads': threads.map((t) {
+        if (t.colorGroup != null) {
+          return {
+            'colorGroup': t.colorGroup,
+            'cells': t.cells.map((c) => [c.r, c.c]).toList(growable: false),
+          };
+        }
+        return t.cells.map((c) => [c.r, c.c]).toList(growable: false);
+      }).toList(growable: false),
+      if (deflectors.isNotEmpty)
+        'deflectors': deflectors.map((d) => d.toJson()).toList(growable: false),
     };
   }
 

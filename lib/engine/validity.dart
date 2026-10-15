@@ -68,8 +68,9 @@ ValidityResult validateLevel(Level level) {
     }
 
     // 3. No thread's ray intersects its own cells
+    final deflectorMap = {for (final d in level.deflectors) d.cell: d.dir};
     final ownCells = t.cells.toSet();
-    for (final rayCell in BoardState.ray(t, level.rows, level.cols)) {
+    for (final rayCell in BoardState.ray(t, level.rows, level.cols, deflectorMap)) {
       if (ownCells.contains(rayCell)) {
         return ValidityResult.invalid(
           'Thread #${t.id} ray intersects its own body at $rayCell.',

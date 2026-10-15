@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:arrowtapout/data/level_binary_codec.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -17,11 +18,48 @@ List<Level> _parseChapterJson((String, int) args) {
 
 class LevelRepository {
   final Map<int, List<Level>> _chapterCache = {};
+  LevelBinaryDecoder? _binaryDecoder;
+  bool _binaryLoadAttempted = false;
 
-  /// Loads all 20 levels for a given [chapterNumber] (1..10).
+  Future<void> _ensureBinaryDecoder() async {
+    if (_binaryLoadAttempted) return;
+    _binaryLoadAttempted = true;
+    try {
+      ByteData byteData;
+      try {
+        byteData = await rootBundle.load('assets/levels/levels.bin');
+      } catch (_) {
+        byteData = await rootBundle.load('assets/levels.bin');
+      }
+      _binaryDecoder = LevelBinaryDecoder.fromBytes(
+        byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes),
+      );
+    } catch (_) {
+      // Fallback to chapter JSONs if binary is not bundled
+    }
+  }
+
+  /// Loads all 20 levels for a given [chapterNumber] (1..N).
   Future<List<Level>> loadChapter(int chapterNumber) async {
     if (_chapterCache.containsKey(chapterNumber)) {
       return _chapterCache[chapterNumber]!;
+    }
+
+    await _ensureBinaryDecoder();
+    if (_binaryDecoder != null) {
+      final startId = (chapterNumber - 1) * 20 + 1;
+      final endId = chapterNumber * 20;
+      if (endId <= _binaryDecoder!.levelCount) {
+        final levels = <Level>[];
+        for (var id = startId; id <= endId; id++) {
+          final level = _binaryDecoder!.decodeLevelByNumber(id);
+          if (level != null) levels.add(level);
+        }
+        if (levels.length == 20) {
+          _chapterCache[chapterNumber] = List.unmodifiable(levels);
+          return _chapterCache[chapterNumber]!;
+        }
+      }
     }
 
     final numStr = chapterNumber.toString().padLeft(2, '0');
@@ -32,7 +70,7 @@ class LevelRepository {
     _chapterCache[chapterNumber] = levels;
 
     // Pre-cache next chapter if available
-    if (chapterNumber < 10 && !_chapterCache.containsKey(chapterNumber + 1)) {
+    if (chapterNumber < 25 && !_chapterCache.containsKey(chapterNumber + 1)) {
       unawaited(_preloadNextChapter(chapterNumber + 1));
     }
 
@@ -51,8 +89,14 @@ class LevelRepository {
     }
   }
 
-  /// Loads a specific level by its 1-indexed global ID (1..200).
+  /// Loads a specific level by its 1-indexed global ID (1..500).
   Future<Level> loadLevel(int id) async {
+    await _ensureBinaryDecoder();
+    if (_binaryDecoder != null && id >= 1 && id <= _binaryDecoder!.levelCount) {
+      final level = _binaryDecoder!.decodeLevelByNumber(id);
+      if (level != null) return level;
+    }
+
     final chapter = ((id - 1) ~/ 20) + 1;
     final chapterLevels = await loadChapter(chapter);
     return chapterLevels.firstWhere(

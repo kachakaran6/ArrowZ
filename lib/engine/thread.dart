@@ -5,7 +5,8 @@ import 'package:arrowtapout/engine/dir.dart';
 ///
 /// The head carries an arrowhead pointing along [dir].
 class Thread {
-  Thread(this.id, List<Cell> cells) : cells = List.unmodifiable(cells) {
+  Thread(this.id, List<Cell> cells, {this.colorGroup})
+      : cells = List.unmodifiable(cells) {
     if (cells.length < 2) {
       throw ArgumentError('Thread must contain at least 2 cells.');
     }
@@ -13,6 +14,9 @@ class Thread {
 
   /// Unique identifier of this thread within its level.
   final int id;
+
+  /// Optional color pair group ID. Paired threads share the same group ID.
+  final int? colorGroup;
 
   /// Ordered cells from tail (`cells.first`) to head (`cells.last`).
   final List<Cell> cells;
