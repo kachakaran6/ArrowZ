@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:arrowtapout/design/primitives.dart';
+import 'package:arrowtapout/diagnostics/diagnostics.dart';
 import 'package:arrowtapout/engine/arrow_extraction_engine.dart';
 import 'package:arrowtapout/engine/board_state.dart';
 import 'package:arrowtapout/engine/dir.dart';
@@ -71,6 +72,9 @@ class ActiveExit {
 
   ExtractedGeometry sampleGeometry(double nowMs) {
     final p = progress(nowMs);
+    if (p > 0.0) {
+      Diagnostics.instance.recordFirstMotion(threadId);
+    }
     return geometry.track.sample(p, reduceMotion: reduceMotion);
   }
 
@@ -378,6 +382,52 @@ class BoardAnimator extends ChangeNotifier {
       hintedThreadId = null;
       hintStartTimeMs = null;
     }
+
+    // Stuck detector: any animation running longer than T + 250ms raises a logged error
+    double oldestAge = 0.0;
+    final stuckExits = <int>[];
+    for (final exit in exits.values) {
+      final age = currentMs - exit.startTimeMs;
+      if (age > oldestAge) oldestAge = age;
+      final maxAllowed = exit.durationMs + 250.0;
+      if (age > maxAllowed) {
+        Diagnostics.instance.reportStuckAnimation(
+          threadId: exit.threadId,
+          state: 'exiting',
+          ageMs: age,
+          maxAllowedMs: maxAllowed,
+        );
+        stuckExits.add(exit.threadId);
+      }
+    }
+    for (final id in stuckExits) {
+      exits.remove(id);
+    }
+
+    final stuckBlockeds = <int>[];
+    for (final b in blockeds.values) {
+      final age = currentMs - b.startTimeMs;
+      if (age > oldestAge) oldestAge = age;
+      const maxAllowed = ActiveBlocked.totalMs + 250.0;
+      if (age > maxAllowed) {
+        Diagnostics.instance.reportStuckAnimation(
+          threadId: b.threadId,
+          state: 'bouncing',
+          ageMs: age,
+          maxAllowedMs: maxAllowed,
+        );
+        stuckBlockeds.add(b.threadId);
+      }
+    }
+    for (final id in stuckBlockeds) {
+      blockeds.remove(id);
+    }
+
+    Diagnostics.instance.updateAnimationStats(
+      exiting: exits.length,
+      bouncing: blockeds.length,
+      oldestAgeMs: oldestAge,
+    );
 
     notifyListeners();
 

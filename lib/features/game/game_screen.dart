@@ -8,6 +8,8 @@ import 'package:arrowtapout/data/streak_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/component_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
+import 'package:arrowtapout/diagnostics/diagnostics.dart';
+import 'package:arrowtapout/diagnostics/diagnostics_overlay.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/board_view.dart';
 import 'package:arrowtapout/features/game/game_controller.dart';
@@ -24,6 +26,7 @@ import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/notification_service.dart';
 import 'package:arrowtapout/router/routes.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -48,6 +51,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
   bool _isLoading = true;
   String? _errorMessage;
   bool _sheetOpen = false;
+  bool _showDiagnostics = false;
 
   @override
   void initState() {
@@ -420,6 +424,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
     final totalThreads = _level!.threads.length;
     final remainingThreads = gameState.activeIds.length;
+    Diagnostics.instance.recordGameScreenRebuild();
 
     return PopScope(
       canPop: false,
@@ -428,53 +433,66 @@ class _GameScreenState extends ConsumerState<GameScreen>
           _handleBackToHome();
         }
       },
-      child: Scaffold(
-        backgroundColor: tokens.bg,
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // --- 1. Header (Height 64) ---
-              SizedBox(
-                height: 64.0,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: ComponentTokens.pagePadding,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Left: Back button + Level Title
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            key: const Key('game_back_button'),
-                            icon: Icon(
-                              Icons.arrow_back_rounded,
-                              color: tokens.ink,
-                              size: 24.0,
+      child: DiagnosticsOverlay(
+        isVisible: _showDiagnostics,
+        onClose: () => setState(() => _showDiagnostics = false),
+        child: Scaffold(
+          backgroundColor: tokens.bg,
+          body: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // --- 1. Header (Height 64) ---
+                SizedBox(
+                  height: 64.0,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: ComponentTokens.pagePadding,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Left: Back button + Level Title (Long-press enables DiagnosticsOverlay)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              key: const Key('game_back_button'),
+                              icon: Icon(
+                                Icons.arrow_back_rounded,
+                                color: tokens.ink,
+                                size: 24.0,
+                              ),
+                              tooltip: 'Back to Home',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: ComponentTokens.minTapTargetSize,
+                                minHeight: ComponentTokens.minTapTargetSize,
+                              ),
+                              onPressed: _handleBackToHome,
                             ),
-                            tooltip: 'Back to Home',
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: ComponentTokens.minTapTargetSize,
-                              minHeight: ComponentTokens.minTapTargetSize,
+                            const SizedBox(width: Primitives.space4),
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onLongPress: () {
+                                if (!kReleaseMode) {
+                                  setState(() {
+                                    _showDiagnostics = !_showDiagnostics;
+                                  });
+                                }
+                              },
+                              child: Text(
+                                'Level ${widget.levelId}',
+                                style: TextStyle(
+                                  fontFamily: Primitives.fontDisplay,
+                                  fontSize: 22.0,
+                                  fontWeight: FontWeight.w500,
+                                  color: tokens.ink,
+                                ),
+                              ),
                             ),
-                            onPressed: _handleBackToHome,
-                          ),
-                          const SizedBox(width: Primitives.space4),
-                          Text(
-                            'Level ${widget.levelId}',
-                            style: TextStyle(
-                              fontFamily: Primitives.fontDisplay,
-                              fontSize: 22.0,
-                              fontWeight: FontWeight.w500,
-                              color: tokens.ink,
-                            ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
 
                       // Centre: Heart life indicator (3 lives: red = active, white = lost)
                       HeartLifeIndicator(
@@ -601,19 +619,24 @@ class _GameScreenState extends ConsumerState<GameScreen>
                             transitionBuilder: (child, animation) =>
                                 FadeTransition(
                                     opacity: animation, child: child),
-                            child: Text(
-                              '$remainingThreads',
+                            child: Builder(
                               key: ValueKey(remainingThreads),
-                              style: TextStyle(
-                                fontFamily: Primitives.fontDisplay,
-                                fontSize: 20.0,
-                                height: 1.0,
-                                fontWeight: FontWeight.w500,
-                                color: tokens.ink,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures()
-                                ],
-                              ),
+                              builder: (context) {
+                                Diagnostics.instance.recordHeaderCounterRebuild();
+                                return Text(
+                                  '$remainingThreads',
+                                  style: TextStyle(
+                                    fontFamily: Primitives.fontDisplay,
+                                    fontSize: 20.0,
+                                    height: 1.0,
+                                    fontWeight: FontWeight.w500,
+                                    color: tokens.ink,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures()
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                           ),
                           const SizedBox(width: 6.0),
@@ -672,6 +695,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
             ],
           ),
         ),
+      ),
       ),
     );
   }

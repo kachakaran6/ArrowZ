@@ -1,5 +1,6 @@
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/component_tokens.dart';
+import 'package:arrowtapout/diagnostics/diagnostics.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/board_painter.dart';
 import 'package:arrowtapout/features/game/hit_tester.dart';
@@ -70,8 +71,15 @@ class _BoardViewState extends State<BoardView> {
 
   void _handlePointerUp(
       PointerUpEvent event, double cellSize, double hitPadding) {
+    Diagnostics.instance.recordPointerUp();
     final record = _activePointers.remove(event.pointer);
-    if (!widget.interactive || record == null) {
+    if (record == null) {
+      Diagnostics.instance.recordTapRejected(TapRejectedReason.other);
+      return;
+    }
+    if (!widget.interactive) {
+      Diagnostics.instance
+          .recordTapRejected(TapRejectedReason.levelNotPlayable);
       return;
     }
 
@@ -80,23 +88,42 @@ class _BoardViewState extends State<BoardView> {
     final dist = (event.localPosition - downPos).distance;
 
     // Fast tap: moved < kTouchSlop * 1.5 and duration < 500ms
-    if (dist <= kTouchSlop * 1.5 && elapsedMs < 500) {
-      final boardLocalPos =
-          event.localPosition - Offset(hitPadding, hitPadding);
-      final hitId = _hitTester.hitTest(
-        localPosition: boardLocalPos,
-        cellSize: cellSize,
-        activeThreadIds: widget.activeIds,
-      );
-
-      if (hitId != null) {
-        widget.onThreadTap(hitId);
-      }
+    if (dist > kTouchSlop * 1.5) {
+      Diagnostics.instance.recordTapRejected(TapRejectedReason.slopExceeded);
+      return;
     }
+    if (elapsedMs >= 500) {
+      Diagnostics.instance.recordTapRejected(TapRejectedReason.tooLong);
+      return;
+    }
+
+    final boardLocalPos =
+        event.localPosition - Offset(hitPadding, hitPadding);
+    final hitId = _hitTester.hitTest(
+      localPosition: boardLocalPos,
+      cellSize: cellSize,
+      activeThreadIds: widget.activeIds,
+    );
+
+    if (hitId == null) {
+      Diagnostics.instance
+          .recordTapRejected(TapRejectedReason.noThreadInTolerance);
+      return;
+    }
+
+    if (!widget.activeIds.contains(hitId)) {
+      Diagnostics.instance
+          .recordTapRejected(TapRejectedReason.threadAlreadyGone);
+      return;
+    }
+
+    Diagnostics.instance.recordTapAccepted(hitId);
+    widget.onThreadTap(hitId);
   }
 
   @override
   Widget build(BuildContext context) {
+    Diagnostics.instance.recordBoardWidgetRebuild();
     final tokens = context.tokens;
     final dpr = MediaQuery.devicePixelRatioOf(context);
 

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:arrowtapout/data/settings_repository.dart';
+import 'package:arrowtapout/diagnostics/diagnostics.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,14 +53,22 @@ class AudioService {
       _completePlayer = AudioPlayer()..setPlayerMode(PlayerMode.lowLatency);
       _uiPlayer = AudioPlayer()..setPlayerMode(PlayerMode.lowLatency);
       _initialized = true;
-    } catch (_) {
-      // Audio fallback
+      Diagnostics.instance.updateSoundStats(
+        requested: 0,
+        started: 0,
+        failed: 0,
+        inFlight: 0,
+        poolSize: _pullPlayers.length,
+      );
+    } catch (e) {
+      Diagnostics.instance.soundLastError = e.toString();
     }
   }
 
   bool get _soundEnabled => _ref.read(settingsProvider).sound;
 
   void playPull() {
+    Diagnostics.instance.soundRequested++;
     if (!_soundEnabled || !_initialized || _pullPlayers.isEmpty) return;
     try {
       final player = _pullPlayers[_pullIndex];
@@ -69,28 +78,47 @@ class AudioService {
       final rate = 1.0 + (_rand.nextDouble() * 0.12 - 0.06);
       player.setPlaybackRate(rate);
       player.play(AssetSource('audio/pull.ogg'), volume: 0.85);
-    } catch (_) {}
+      Diagnostics.instance.soundStarted++;
+    } catch (e) {
+      Diagnostics.instance.soundFailed++;
+      Diagnostics.instance.soundLastError = e.toString();
+    }
   }
 
   void playBlock() {
+    Diagnostics.instance.soundRequested++;
     if (!_soundEnabled || !_initialized || _blockPlayer == null) return;
     try {
       _blockPlayer!.play(AssetSource('audio/block.ogg'), volume: 0.9);
-    } catch (_) {}
+      Diagnostics.instance.soundStarted++;
+    } catch (e) {
+      Diagnostics.instance.soundFailed++;
+      Diagnostics.instance.soundLastError = e.toString();
+    }
   }
 
   void playComplete() {
+    Diagnostics.instance.soundRequested++;
     if (!_soundEnabled || !_initialized || _completePlayer == null) return;
     try {
       _completePlayer!.play(AssetSource('audio/complete.ogg'), volume: 0.95);
-    } catch (_) {}
+      Diagnostics.instance.soundStarted++;
+    } catch (e) {
+      Diagnostics.instance.soundFailed++;
+      Diagnostics.instance.soundLastError = e.toString();
+    }
   }
 
   void playUi() {
+    Diagnostics.instance.soundRequested++;
     if (!_soundEnabled || !_initialized || _uiPlayer == null) return;
     try {
       _uiPlayer!.play(AssetSource('audio/ui.ogg'), volume: 0.7);
-    } catch (_) {}
+      Diagnostics.instance.soundStarted++;
+    } catch (e) {
+      Diagnostics.instance.soundFailed++;
+      Diagnostics.instance.soundLastError = e.toString();
+    }
   }
 
   void dispose() {
