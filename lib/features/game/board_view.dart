@@ -103,8 +103,7 @@ class _BoardViewState extends State<BoardView> {
     }
 
     final currentActive = _effectiveActiveIds;
-    final boardLocalPos =
-        event.localPosition - Offset(hitPadding, hitPadding);
+    final boardLocalPos = event.localPosition - Offset(hitPadding, hitPadding);
     final hitId = _hitTester.hitTest(
       localPosition: boardLocalPos,
       cellSize: cellSize,
@@ -144,8 +143,13 @@ class _BoardViewState extends State<BoardView> {
         );
 
         if (_lastCellSize != cellSize) {
+          final wasInitialized = _lastCellSize > 0;
           _lastCellSize = cellSize;
-          widget.animator.setLevel(widget.level, cellSize);
+          if (wasInitialized) {
+            widget.animator.updateCellSize(cellSize);
+          } else {
+            widget.animator.setLevel(widget.level, cellSize);
+          }
         }
 
         final boardW = (widget.level.cols - 1) * cellSize;

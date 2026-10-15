@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/snapshot_repository.dart';
 import 'package:arrowtapout/data/stats_and_snapshot_models.dart';
 import 'package:arrowtapout/data/streak_repository.dart';
+import 'package:arrowtapout/diagnostics/diagnostics.dart';
 import 'package:arrowtapout/engine/board_state.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/game_state.dart';
@@ -187,6 +189,7 @@ class GameController extends StateNotifier<GameState> {
 
     void completeNow() {
       if (!mounted || state.status != GameStatus.playing) return;
+      animator.onAllExitsCompleted = null;
       final stars = GameState.calculateStars(state.mistakes);
       state = state.copyWith(
         status: GameStatus.completed,
@@ -206,12 +209,41 @@ class GameController extends StateNotifier<GameState> {
       streakRepo?.recordQualifyingPlay(null, notificationService);
     }
 
-    // 350 ms stillness after last exit before showing complete sheet
-    _completeTimer = Timer(const Duration(milliseconds: 350), () {
+    void scheduleStillnessCompletion() {
       if (!mounted || state.status != GameStatus.playing) return;
-      animator.finalizeAllRunningAnimations();
-      completeNow();
-    });
+      _completeTimer?.cancel();
+      // 200 ms natural stillness after the last arrow exits the board
+      _completeTimer = Timer(const Duration(milliseconds: 200), () {
+        if (!mounted || state.status != GameStatus.playing) return;
+        completeNow();
+      });
+    }
+
+    if (!animator.hasActiveExits) {
+      scheduleStillnessCompletion();
+    } else {
+      animator.onAllExitsCompleted = () {
+        scheduleStillnessCompletion();
+      };
+      // Defensive fallback timer proportional to the maximum active exit path length
+      // ensuring headless tests and stalled tickers recover safely
+      final maxExitMs = animator.exits.values.fold<double>(
+        0.0,
+        (maxVal, e) => math.max(maxVal, e.durationMs),
+      );
+      final fallbackDelayMs = math.max(maxExitMs + 50.0, 390.0).ceil();
+      _completeTimer = Timer(Duration(milliseconds: fallbackDelayMs), () {
+        if (!mounted || state.status != GameStatus.playing) return;
+        Diagnostics.instance.reportStuckAnimation(
+          threadId: 0,
+          state: 'completion_fallback',
+          ageMs: fallbackDelayMs.toDouble(),
+          maxAllowedMs: fallbackDelayMs.toDouble(),
+        );
+        animator.finalizeAllRunningAnimations();
+        completeNow();
+      });
+    }
   }
 
   /// Returns the ID of an optimal unobstructed thread that can currently exit, or null.
@@ -258,6 +290,8 @@ class GameController extends StateNotifier<GameState> {
   void restartLevel(double cellSize) {
     _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
+    animator.onAllExitsCompleted = null;
+    animator.onExitCompleted = null;
     feedbackController.cancel();
     animator.finalizeAllRunningAnimations();
     final allIds = {for (final t in state.level.threads) t.id};
@@ -307,6 +341,8 @@ class GameController extends StateNotifier<GameState> {
   void dispose() {
     _snapshotDebounceTimer?.cancel();
     _completeTimer?.cancel();
+    animator.onAllExitsCompleted = null;
+    animator.onExitCompleted = null;
     feedbackController.dispose();
     animator.finalizeAllRunningAnimations();
     gameStateNotifier.dispose();

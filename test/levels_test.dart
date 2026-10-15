@@ -71,5 +71,23 @@ void main() {
         );
       }
     });
+
+    test('conveyor_level_01.json passes validation and is solvable', () {
+      final file = File('assets/levels/conveyor_level_01.json');
+      expect(file.existsSync(), isTrue);
+      final jsonMap =
+          jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      final level = Level.fromJson(jsonMap);
+
+      final val = validateLevel(level);
+      expect(val.isValid, isTrue,
+          reason: 'conveyor_level_01 validation failed: ${val.error}');
+
+      final solveRes = solve(level);
+      expect(solveRes.isSolved, isTrue,
+          reason: 'conveyor_level_01 must be solvable');
+      expect(solveRes.initialFreeCount, greaterThanOrEqualTo(1));
+      expect(solveRes.removalOrder.length, equals(level.threads.length));
+    });
   });
 }
