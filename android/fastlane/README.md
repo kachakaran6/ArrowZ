@@ -53,7 +53,7 @@ Build and upload AAB to Google Play Internal track + Git version archive
 [bundle exec] fastlane android closed
 ```
 
-Build and upload AAB to Google Play Closed Testing track (default: Alpha-1) + Git version archive
+Build and upload AAB to Google Play Closed Testing track (default: alpha) + Git version archive
 
 ### android beta
 
@@ -77,7 +77,7 @@ Build and upload AAB to Google Play Production track + Git version archive
 [bundle exec] fastlane android promote_to_closed
 ```
 
-Promote existing Internal build to Closed Testing (Alpha-1) without rebuilding
+Promote existing Internal build to Closed Testing (alpha) without rebuilding
 
 ----
 
