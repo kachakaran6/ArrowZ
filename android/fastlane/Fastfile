@@ -195,6 +195,7 @@ platform :android do
     key_file = resolve_json_key_file
 
     upload_to_play_store(
+      package_name: "com.arrowz.app",
       track: "internal",
       aab: aab_path,
       json_key: key_file,
@@ -215,6 +216,7 @@ platform :android do
     key_file = resolve_json_key_file
 
     upload_to_play_store(
+      package_name: "com.arrowz.app",
       track: track_name,
       aab: aab_path,
       json_key: key_file,
@@ -234,6 +236,7 @@ platform :android do
     key_file = resolve_json_key_file
 
     upload_to_play_store(
+      package_name: "com.arrowz.app",
       track: "beta",
       aab: aab_path,
       json_key: key_file,
@@ -254,6 +257,7 @@ platform :android do
     key_file = resolve_json_key_file
 
     upload_params = {
+      package_name: "com.arrowz.app",
       track: "production",
       aab: aab_path,
       json_key: key_file,
@@ -275,6 +279,7 @@ platform :android do
     key_file = resolve_json_key_file
 
     upload_to_play_store(
+      package_name: "com.arrowz.app",
       track: "internal",
       track_promote_to: track_name,
       json_key: key_file,
