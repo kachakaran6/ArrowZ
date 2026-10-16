@@ -3,6 +3,7 @@ import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/data/stats_and_snapshot_models.dart';
 import 'package:arrowtapout/design/themes.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   group('Persistence & Repositories', () {
@@ -88,6 +89,42 @@ void main() {
       expect(restored.activeThreadIds, equals({1, 3, 5}));
       expect(restored.mistakes, equals(1));
       expect(restored.hintsUsed, equals(2));
+    });
+
+    test('Old user progress is reset to Level 1 on first launch after update',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        'unwind.progress':
+            '{"highestUnlocked":68,"stars":{"1":3,"2":3},"hintBank":5,"stats":{"levelsCleared":67,"totalStars":180},"coachMarkShown":true}',
+        'unwind.snapshot':
+            '{"levelId":68,"activeThreadIds":[1,2],"mistakes":0,"hintsUsed":0,"savedAtMs":1234567}',
+      });
+
+      final prefs = await SharedPreferences.getInstance();
+
+      // Creating repository performs migration
+      final repo = ProgressRepository(prefs);
+
+      // State is reset to Level 1
+      expect(repo.state.highestUnlocked, equals(1));
+      expect(repo.state.stars, isEmpty);
+
+      // Snapshot and old progress are removed
+      expect(prefs.containsKey('unwind.snapshot'), isFalse);
+      expect(prefs.getBool(ProgressRepository.migrationResetKey), isTrue);
+
+      // Now player completes level 1 -> unlocks level 2
+      await repo.recordLevelCompleted(
+        levelId: 1,
+        starsEarned: 3,
+        threadsCleared: 4,
+        mistakes: 0,
+      );
+      expect(repo.state.highestUnlocked, equals(2));
+
+      // Next app launch retains new progress
+      final repo2 = ProgressRepository(prefs);
+      expect(repo2.state.highestUnlocked, equals(2));
     });
   });
 }

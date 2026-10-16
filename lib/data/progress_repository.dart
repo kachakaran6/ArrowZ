@@ -66,9 +66,21 @@ class ProgressRepository extends StateNotifier<ProgressState> {
 
   final SharedPreferences? _prefs;
   static const String _key = 'unwind.progress';
+  static const String migrationResetKey = 'arrowz.v2_redesign_level1_reset';
 
   void _load() {
     if (_prefs == null) return;
+
+    // One-time update migration: all users start fresh from Level 1
+    final hasResetForUpdate = _prefs.getBool(migrationResetKey) ?? false;
+    if (!hasResetForUpdate) {
+      _prefs.remove(_key);
+      _prefs.remove('unwind.snapshot');
+      _prefs.setBool(migrationResetKey, true);
+      state = const ProgressState(highestUnlocked: 1);
+      return;
+    }
+
     final jsonStr = _prefs.getString(_key);
     if (jsonStr != null) {
       try {
@@ -151,10 +163,11 @@ class ProgressRepository extends StateNotifier<ProgressState> {
 
   /// Resets all progress back to initial default state.
   Future<void> resetProgress() async {
-    state = const ProgressState();
+    state = const ProgressState(highestUnlocked: 1);
     if (_prefs != null) {
       await _prefs.remove(_key);
       await _prefs.remove('unwind.snapshot');
+      await _prefs.setBool(migrationResetKey, true);
     }
   }
 }
