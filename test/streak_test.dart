@@ -403,7 +403,7 @@ void main() {
     testWidgets('16. Tapping lobby Streak button opens the Streak screen',
         (tester) async {
       final streakRepo = StreakRepository(prefs);
-      await streakRepo.recordQualifyingPlay(DateTime(2026, 10, 14));
+      await streakRepo.recordQualifyingPlay(DateTime.now());
 
       final testRouter = GoRouter(
         initialLocation: Routes.home,

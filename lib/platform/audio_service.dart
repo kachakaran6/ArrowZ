@@ -178,7 +178,7 @@ class AudioService implements SoundService {
     required double volume,
     required int safetyDurationMs,
   }) {
-    if (voices.isEmpty) return;
+    if (voices.isEmpty || _isRecreating) return;
 
     // 1. Look for an idle voice
     _SoundVoice? target;
@@ -190,9 +190,17 @@ class AudioService implements SoundService {
     }
 
     // 2. If all voices are busy, steal the oldest voice (smallest startTimeMs)
-    target ??= voices.reduce((a, b) => a.startTimeMs < b.startTimeMs ? a : b);
+    if (target == null && voices.isNotEmpty) {
+      try {
+        target = voices.reduce((a, b) => a.startTimeMs < b.startTimeMs ? a : b);
+      } catch (_) {
+        target = voices.firstOrNull;
+      }
+    }
 
-    _playSingleVoice(target, volume: volume, safetyDurationMs: safetyDurationMs);
+    if (target != null) {
+      _playSingleVoice(target, volume: volume, safetyDurationMs: safetyDurationMs);
+    }
   }
 
   void _playSingleVoice(

@@ -53,11 +53,29 @@ class _GameScreenState extends ConsumerState<GameScreen>
   bool _sheetOpen = false;
   bool _showDiagnostics = false;
 
+  final Stopwatch _stopwatch = Stopwatch();
+  Timer? _tickerTimer;
+  int _elapsedSeconds = 0;
+
+  String _formatTime(int totalSeconds) {
+    final m = totalSeconds ~/ 60;
+    final s = totalSeconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _animator = BoardAnimator(vsync: this);
+    _stopwatch.start();
+    _tickerTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && !_sheetOpen && (_controller?.currentState.status == GameStatus.playing)) {
+        setState(() {
+          _elapsedSeconds = _stopwatch.elapsed.inSeconds;
+        });
+      }
+    });
     _loadLevel();
   }
 
@@ -127,6 +145,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
   @override
   void dispose() {
+    _tickerTimer?.cancel();
+    _stopwatch.stop();
     WidgetsBinding.instance.removeObserver(this);
     _animator.finalizeAllRunningAnimations();
     _controller?.dispose();
@@ -348,6 +368,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
         stars: state.stars,
         threadsCleared: state.level.threads.length,
         mistakes: state.mistakes,
+        elapsedSeconds: _elapsedSeconds,
         onNextLevel: () {
           _sheetOpen = false;
           _animator.finalizeAllRunningAnimations();
@@ -517,14 +538,55 @@ class _GameScreenState extends ConsumerState<GameScreen>
                           ],
                         ),
 
-                      // Centre: Heart life indicator (3 lives: red = active, white = lost)
-                      ListenableBuilder(
-                        listenable: _controller!.gameStateNotifier,
-                        builder: (context, _) => HeartLifeIndicator(
-                          remainingLives:
-                              _controller!.currentState.remainingLives,
-                          reduceMotion: reduceMotion,
-                        ),
+                      // Centre: Heart life indicator + live timer badge
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ListenableBuilder(
+                            listenable: _controller!.gameStateNotifier,
+                            builder: (context, _) => HeartLifeIndicator(
+                              remainingLives:
+                                  _controller!.currentState.remainingLives,
+                              reduceMotion: reduceMotion,
+                            ),
+                          ),
+                          const SizedBox(height: 3.0),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8.0,
+                              vertical: 2.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: tokens.surface.withValues(alpha: 0.8),
+                              borderRadius: BorderRadius.circular(10.0),
+                              border: Border.all(
+                                color: tokens.threadFaint.withValues(alpha: 0.5),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.timer_outlined,
+                                  size: 12.0,
+                                  color: tokens.inkFaint,
+                                ),
+                                const SizedBox(width: 4.0),
+                                Text(
+                                  _formatTime(_elapsedSeconds),
+                                  style: TextStyle(
+                                    fontFamily: Primitives.fontUi,
+                                    fontSize: 11.0,
+                                    fontWeight: FontWeight.w600,
+                                    color: tokens.inkMuted,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
 
                       // Right: Replay button + Hint button (top-right corner)
@@ -612,6 +674,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                   level: _level!,
                   getActiveIds: () => _controller!.currentState.activeIds,
                   animator: _animator,
+                  arrowSkin: settings.arrowSkin,
                   reduceMotion: reduceMotion,
                   interactive: !_sheetOpen,
                   onThreadTap: (id) {

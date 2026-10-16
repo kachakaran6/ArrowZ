@@ -1,5 +1,9 @@
+import 'dart:math' as math;
+
+import 'package:arrowtapout/data/arrow_skin.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/component_tokens.dart';
+import 'package:arrowtapout/design/primitives.dart';
 import 'package:arrowtapout/diagnostics/diagnostics.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/board_painter.dart';
@@ -19,6 +23,7 @@ class BoardView extends StatefulWidget {
     required this.onThreadTap,
     this.reduceMotion = false,
     this.interactive = true,
+    this.arrowSkin = ArrowSkin.chevron,
   });
 
   final Level level;
@@ -28,23 +33,74 @@ class BoardView extends StatefulWidget {
   final ValueChanged<int> onThreadTap;
   final bool reduceMotion;
   final bool interactive;
+  final ArrowSkin arrowSkin;
 
   @override
   State<BoardView> createState() => _BoardViewState();
 }
 
-class _BoardViewState extends State<BoardView> {
+class _BoardViewState extends State<BoardView>
+    with SingleTickerProviderStateMixin {
   late BoardHitTester _hitTester;
   final TransformationController _transformController =
       TransformationController();
+  late final AnimationController _zoomAnimController;
+  Animation<Matrix4>? _zoomAnimation;
 
   final Map<int, (Offset pos, DateTime time)> _activePointers = {};
   double _lastCellSize = 0.0;
+  bool _isZoomed = false;
+  double _currentScale = 1.0;
 
   @override
   void initState() {
     super.initState();
     _hitTester = BoardHitTester(widget.level);
+    _transformController.addListener(_onTransformChanged);
+    _zoomAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    )..addListener(() {
+        if (_zoomAnimation != null) {
+          _transformController.value = _zoomAnimation!.value;
+        }
+      });
+  }
+
+  void _onTransformChanged() {
+    final scale = _transformController.value.getMaxScaleOnAxis();
+    final zoomed = scale > 1.05;
+    if ((zoomed != _isZoomed || (_currentScale - scale).abs() > 0.04) &&
+        mounted) {
+      setState(() {
+        _isZoomed = zoomed;
+        _currentScale = scale;
+      });
+    }
+  }
+
+  void _animateToScale(double targetScale,
+      {Offset? focalPoint, Size? viewportSize}) {
+    final size = viewportSize ?? const Size(400, 600);
+    final center = focalPoint ?? Offset(size.width / 2, size.height / 2);
+
+    final Matrix4 endMatrix = Matrix4.identity();
+    if (targetScale > 1.02) {
+      endMatrix
+        ..setEntry(0, 0, targetScale)
+        ..setEntry(1, 1, targetScale)
+        ..setEntry(0, 3, center.dx * (1.0 - targetScale))
+        ..setEntry(1, 3, center.dy * (1.0 - targetScale));
+    }
+
+    _zoomAnimation = Matrix4Tween(
+      begin: _transformController.value,
+      end: endMatrix,
+    ).animate(CurvedAnimation(
+      parent: _zoomAnimController,
+      curve: Curves.easeOutCubic,
+    ));
+    _zoomAnimController.forward(from: 0.0);
   }
 
   @override
@@ -54,11 +110,15 @@ class _BoardViewState extends State<BoardView> {
       _hitTester = BoardHitTester(widget.level);
       _transformController.value = Matrix4.identity();
       _lastCellSize = 0.0;
+      _isZoomed = false;
+      _currentScale = 1.0;
     }
   }
 
   @override
   void dispose() {
+    _transformController.removeListener(_onTransformChanged);
+    _zoomAnimController.dispose();
     _transformController.dispose();
     super.dispose();
   }
@@ -126,6 +186,104 @@ class _BoardViewState extends State<BoardView> {
     widget.onThreadTap(hitId);
   }
 
+  Widget _buildZoomControls(
+      AppTokens tokens, bool isBiggerLevel, Size viewportSize) {
+    if (!isBiggerLevel) return const SizedBox.shrink();
+
+    return Positioned(
+      right: Primitives.space16,
+      bottom: Primitives.space12,
+      child: Material(
+        color: Colors.transparent,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+          decoration: BoxDecoration(
+            color: tokens.surface.withValues(alpha: 0.94),
+            borderRadius: BorderRadius.circular(24.0),
+            border: Border.all(
+              color: tokens.threadFaint.withValues(alpha: 0.9),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: tokens.ink.withValues(alpha: 0.08),
+                blurRadius: 10.0,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: _isZoomed
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.remove_rounded, size: 20.0),
+                      color: tokens.ink,
+                      constraints: const BoxConstraints(
+                          minWidth: 36.0, minHeight: 36.0),
+                      padding: EdgeInsets.zero,
+                      tooltip: 'Zoom out',
+                      onPressed: () {
+                        final newScale = math.max(1.0, _currentScale - 0.35);
+                        _animateToScale(newScale, viewportSize: viewportSize);
+                      },
+                    ),
+                    InkWell(
+                      onTap: () =>
+                          _animateToScale(1.0, viewportSize: viewportSize),
+                      borderRadius: BorderRadius.circular(12.0),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8.0, vertical: 4.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${(_currentScale * 100).round()}%',
+                              style: tokens.typography.caption.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: tokens.accent,
+                              ),
+                            ),
+                            const SizedBox(width: 4.0),
+                            Icon(Icons.fit_screen_rounded,
+                                size: 16.0, color: tokens.accent),
+                          ],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_rounded, size: 20.0),
+                      color: tokens.ink,
+                      constraints: const BoxConstraints(
+                          minWidth: 36.0, minHeight: 36.0),
+                      padding: EdgeInsets.zero,
+                      tooltip: 'Zoom in',
+                      onPressed: () {
+                        final newScale = math.min(2.8, _currentScale + 0.35);
+                        _animateToScale(newScale, viewportSize: viewportSize);
+                      },
+                    ),
+                  ],
+                )
+              : IconButton(
+                  icon: const Icon(Icons.zoom_in_rounded, size: 22.0),
+                  color: tokens.ink,
+                  constraints: const BoxConstraints(
+                      minWidth: 40.0, minHeight: 40.0),
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Zoom & Resize Board',
+                  onPressed: () {
+                    _animateToScale(1.65, viewportSize: viewportSize);
+                  },
+                ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     Diagnostics.instance.recordBoardWidgetRebuild();
@@ -140,6 +298,7 @@ class _BoardViewState extends State<BoardView> {
           rows: widget.level.rows,
           cols: widget.level.cols,
           devicePixelRatio: dpr,
+          isInnerContainer: false,
         );
 
         if (_lastCellSize != cellSize) {
@@ -154,10 +313,12 @@ class _BoardViewState extends State<BoardView> {
 
         final boardW = (widget.level.cols - 1) * cellSize;
         final boardH = (widget.level.rows - 1) * cellSize;
-        final hitPadding = cellSize * 0.75;
-        final needsPinchZoom = cellSize < ComponentTokens.zoomThresholdCellSize;
+        final hitPadding = (cellSize * 0.7).clamp(16.0, 26.0);
+        final isBiggerLevel = widget.level.cols >= 9 ||
+            widget.level.rows >= 9 ||
+            cellSize < ComponentTokens.zoomThresholdCellSize;
 
-        Widget boardWidget = Listener(
+        final boardWidget = Listener(
           behavior: HitTestBehavior.opaque,
           onPointerDown: _handlePointerDown,
           onPointerCancel: _handlePointerCancel,
@@ -184,6 +345,7 @@ class _BoardViewState extends State<BoardView> {
                       tokens: tokens,
                       animator: widget.animator,
                       reduceMotion: widget.reduceMotion,
+                      arrowSkin: widget.arrowSkin,
                     ),
                   ),
                 ),
@@ -192,34 +354,45 @@ class _BoardViewState extends State<BoardView> {
           ),
         );
 
-        if (needsPinchZoom) {
-          boardWidget = InteractiveViewer(
+        final viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+
+        final interactiveBoard = GestureDetector(
+          onDoubleTapDown: (details) {
+            if (_isZoomed) {
+              _animateToScale(1.0, viewportSize: viewportSize);
+            } else {
+              _animateToScale(1.75,
+                  focalPoint: details.localPosition,
+                  viewportSize: viewportSize);
+            }
+          },
+          child: InteractiveViewer(
             transformationController: _transformController,
-            minScale: 1.0,
-            maxScale: 3.0,
+            minScale: 0.95,
+            maxScale: 2.8,
+            panEnabled: _isZoomed,
+            scaleEnabled: isBiggerLevel,
+            boundaryMargin:
+                _isZoomed ? const EdgeInsets.all(40.0) : EdgeInsets.zero,
+            alignment: Alignment.center,
             onInteractionStart: (details) {
               if (details.pointerCount > 1) {
                 _activePointers.clear();
               }
             },
-            boundaryMargin: const EdgeInsets.all(24.0),
             child: Center(
-              child: Transform.translate(
-                offset: Offset(0, -0.02 * constraints.maxHeight),
-                child: boardWidget,
-              ),
-            ),
-          );
-        } else {
-          boardWidget = Center(
-            child: Transform.translate(
-              offset: Offset(0, -0.02 * constraints.maxHeight),
               child: boardWidget,
             ),
-          );
-        }
+          ),
+        );
 
-        return boardWidget;
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned.fill(child: interactiveBoard),
+            _buildZoomControls(tokens, isBiggerLevel, viewportSize),
+          ],
+        );
       },
     );
   }

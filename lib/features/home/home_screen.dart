@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/snapshot_repository.dart';
 import 'package:arrowtapout/data/streak_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
+import 'package:arrowtapout/features/game/board_painter.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/notification_service.dart';
 import 'package:arrowtapout/platform/play_update_service.dart';
@@ -11,16 +14,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Professional, elegant lobby screen for ArrowZ.
+/// Professional, elegant, production-ready lobby screen for ArrowZ.
 ///
 /// Features:
-/// - Refined game branding with the official game icon emblem
-/// - Ambient decorative arrow motifs that breathe calmly
-/// - Interactive cardinal arrow tiles with haptic tactile response
-/// - Chapter and level progression card with star display
-/// - High-contrast, satisfying primary Play action
-/// - Sleek daily streak indicator pill
-/// - Direct access to the Level Browser and Settings
+/// - Top status-safe header with daily streak pill, chapter browser, and settings
+/// - Refined brand identity with official emblem, wordmark, and subtitle
+/// - Interactive miniature puzzle showcase demonstrating arrow mechanics
+/// - Polished chapter & level progression card with star display and chapter progress
+/// - Premium, high-contrast primary Play action with fluid press micro-interactions
+/// - Calm, architectural geometric background painter
+/// - Staggered entrance animations respecting accessibility preferences
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -34,7 +37,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   DateTime? _lastNavTime;
 
   late final AnimationController _entranceController;
-  int _tappedArrowIndex = -1;
 
   @override
   void initState() {
@@ -43,7 +45,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     _entranceController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 550),
     )..forward();
 
     // Check Play in-app updates and sync streak status at session start
@@ -124,20 +126,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     Future.delayed(const Duration(milliseconds: 600), _resetNav);
   }
 
-  void _onTapArrowTile(int index) {
-    ref.read(hapticsServiceProvider).light();
-    setState(() {
-      _tappedArrowIndex = index;
-    });
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() {
-          _tappedArrowIndex = -1;
-        });
-      }
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
@@ -154,13 +142,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             : progress.highestUnlocked.clamp(1, 200);
 
     final chapterNumber = ((currentLevel - 1) ~/ 20) + 1;
+    final levelInChapter = ((currentLevel - 1) % 20) + 1;
     final starsEarned = progress.stars[currentLevel] ?? 0;
 
     return Scaffold(
       backgroundColor: tokens.bg,
       body: Stack(
         children: [
-          // Ambient animated background arrows
+          // Ambient architectural background lines
           Positioned.fill(
             child: AnimatedBuilder(
               animation: _entranceController,
@@ -179,7 +168,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           SafeArea(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final isCompact = constraints.maxHeight < 540;
+                final isCompact = constraints.maxHeight < 620;
+                final isVeryCompact = constraints.maxHeight < 520;
+                final isSmallWidth = constraints.maxWidth < 360;
 
                 return Center(
                   child: ConstrainedBox(
@@ -192,416 +183,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         ),
                         child: IntrinsicHeight(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: Primitives.space24,
-                              vertical: Primitives.space16,
+                            padding: EdgeInsets.symmetric(
+                              horizontal:
+                                  isSmallWidth ? 16.0 : Primitives.space24,
+                              vertical: isCompact
+                                  ? Primitives.space12
+                                  : Primitives.space16,
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                // ── Top Header Row ─────────────────────────
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    // Daily Streak Pill
-                                    Semantics(
-                                      button: true,
-                                      label: 'Streak: $currentStreak days',
-                                      child: InkWell(
-                                        key: const Key('lobby_streak_button'),
-                                        onTap: _onStreak,
-                                        borderRadius: BorderRadius.circular(
-                                          Primitives.radiusButton,
-                                        ),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 14.0,
-                                            vertical: 8.0,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: tokens.surface,
-                                            borderRadius: BorderRadius.circular(
-                                              Primitives.radiusButton,
-                                            ),
-                                            border: Border.all(
-                                              color: currentStreak > 0
-                                                  ? const Color(0xFFE5A93C)
-                                                      .withValues(alpha: 0.45)
-                                                  : tokens.threadFaint,
-                                              width: 1.0,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: tokens.ink
-                                                    .withValues(alpha: 0.03),
-                                                blurRadius: 8,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                Icons
-                                                    .local_fire_department_rounded,
-                                                size: 20.0,
-                                                color: currentStreak > 0
-                                                    ? const Color(0xFFE57B24)
-                                                    : tokens.inkMuted,
-                                              ),
-                                              const SizedBox(width: 6.0),
-                                              Text(
-                                                '$currentStreak',
-                                                key: const Key(
-                                                    'lobby_streak_text'),
-                                                style: tokens.typography.body
-                                                    .copyWith(
-                                                  fontWeight: FontWeight.w700,
-                                                  color: currentStreak > 0
-                                                      ? tokens.ink
-                                                      : tokens.inkMuted,
-                                                  fontSize: 15.0,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                // ── 1. Top Status-Safe Header ───────────────
+                                _buildHeader(
+                                  tokens: tokens,
+                                  currentStreak: currentStreak,
+                                  isSmallWidth: isSmallWidth,
+                                ),
 
-                                    // Quick Action Buttons
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        // Chapter & Level Browser Icon Button
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            color: tokens.surface,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: tokens.threadFaint,
-                                              width: 1.0,
-                                            ),
-                                          ),
-                                          child: IconButton(
-                                            icon: Icon(
-                                              Icons.grid_view_rounded,
-                                              color: tokens.ink,
-                                              size: 20.0,
-                                            ),
-                                            tooltip: 'Browse Chapters',
-                                            onPressed: _onBrowseLevels,
-                                            constraints: const BoxConstraints(
-                                              minWidth: 40,
-                                              minHeight: 40,
-                                            ),
-                                            padding: EdgeInsets.zero,
-                                          ),
-                                        ),
-                                        const SizedBox(
-                                            width: Primitives.space8),
+                                const Spacer(flex: 1),
 
-                                        // Settings Button
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            color: tokens.surface,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: tokens.threadFaint,
-                                              width: 1.0,
-                                            ),
-                                          ),
-                                          child: IconButton(
-                                            key: const Key(
-                                                'lobby_settings_button'),
-                                            icon: Icon(
-                                              Icons.settings_outlined,
-                                              color: tokens.ink,
-                                              size: 20.0,
-                                            ),
-                                            tooltip: 'Settings',
-                                            onPressed: _onSettings,
-                                            constraints: const BoxConstraints(
-                                              minWidth: 40,
-                                              minHeight: 40,
-                                            ),
-                                            padding: EdgeInsets.zero,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                // ── 2. Central Brand Identity ───────────────
+                                _buildBrandIdentity(
+                                  tokens: tokens,
+                                  isCompact: isCompact,
+                                  isVeryCompact: isVeryCompact,
+                                ),
+
+                                SizedBox(
+                                  height: isCompact
+                                      ? Primitives.space8
+                                      : Primitives.space16,
+                                ),
+
+                                // ── 3. Interactive Miniature Puzzle Preview ─
+                                if (!isVeryCompact) ...[
+                                  _InteractivePuzzlePreview(
+                                    tokens: tokens,
+                                    isCompact: isCompact,
+                                  ),
+                                  SizedBox(
+                                    height: isCompact
+                                        ? Primitives.space12
+                                        : Primitives.space16,
+                                  ),
+                                ],
+
+                                // ── 4. Primary Play Action Button (MIDDLE) ──
+                                _buildPlayButton(
+                                  tokens: tokens,
+                                  currentLevel: currentLevel,
+                                  isCompact: isCompact,
+                                ),
+
+                                SizedBox(
+                                  height: isCompact
+                                      ? Primitives.space12
+                                      : Primitives.space16,
+                                ),
+
+                                // ── 5. Chapter & Level Progression Card ─────
+                                _buildProgressionCard(
+                                  tokens: tokens,
+                                  currentLevel: currentLevel,
+                                  chapterNumber: chapterNumber,
+                                  levelInChapter: levelInChapter,
+                                  starsEarned: starsEarned,
+                                  isCompact: isCompact,
                                 ),
 
                                 const Spacer(flex: 2),
 
-                                // ── Center Brand & Interactive Game Showcase ─
-                                Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      // Official Game Icon Emblem
-                                      Container(
-                                        width: isCompact ? 60.0 : 84.0,
-                                        height: isCompact ? 60.0 : 84.0,
-                                        decoration: BoxDecoration(
-                                          color: tokens.surface,
-                                          borderRadius: BorderRadius.circular(
-                                              isCompact ? 16.0 : 24.0),
-                                          border: Border.all(
-                                            color: tokens.threadFaint,
-                                            width: 1.5,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: tokens.ink
-                                                  .withValues(alpha: 0.08),
-                                              blurRadius: 20,
-                                              offset: const Offset(0, 8),
-                                            ),
-                                          ],
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                              isCompact ? 14.5 : 22.5),
-                                          child: Image.asset(
-                                            'assets/icon.png',
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      ),
-
-                                      SizedBox(
-                                        height: isCompact
-                                            ? Primitives.space8
-                                            : Primitives.space16,
-                                      ),
-
-                                      // Game Title
-                                      Text(
-                                        'ArrowZ',
-                                        key: const Key('lobby_game_title'),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontFamily: Primitives.fontDisplay,
-                                          fontSize: isCompact ? 36.0 : 44.0,
-                                          height: 1.1,
-                                          fontWeight: FontWeight.w600,
-                                          letterSpacing: -0.5,
-                                          color: tokens.ink,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4.0),
-                                      Text(
-                                        'Thread Puzzle',
-                                        textAlign: TextAlign.center,
-                                        style:
-                                            tokens.typography.caption.copyWith(
-                                          color: tokens.inkMuted,
-                                          letterSpacing: 2.2,
-                                          fontSize: 11.0,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-
-                                      SizedBox(
-                                        height: isCompact
-                                            ? Primitives.space12
-                                            : Primitives.space20,
-                                      ),
-
-                                      // Interactive Mini Arrow Showcase
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          _buildArrowTile(
-                                            0,
-                                            Icons.arrow_upward_rounded,
-                                            const Offset(0, -5),
-                                            tokens,
-                                            isCompact,
-                                          ),
-                                          const SizedBox(
-                                              width: Primitives.space8),
-                                          _buildArrowTile(
-                                            1,
-                                            Icons.arrow_forward_rounded,
-                                            const Offset(5, 0),
-                                            tokens,
-                                            isCompact,
-                                          ),
-                                          const SizedBox(
-                                              width: Primitives.space8),
-                                          _buildArrowTile(
-                                            2,
-                                            Icons.arrow_downward_rounded,
-                                            const Offset(0, 5),
-                                            tokens,
-                                            isCompact,
-                                          ),
-                                          const SizedBox(
-                                              width: Primitives.space8),
-                                          _buildArrowTile(
-                                            3,
-                                            Icons.arrow_back_rounded,
-                                            const Offset(-5, 0),
-                                            tokens,
-                                            isCompact,
-                                          ),
-                                        ],
-                                      ),
-
-                                      SizedBox(
-                                        height: isCompact
-                                            ? Primitives.space12
-                                            : Primitives.space20,
-                                      ),
-
-                                      // Current Level Progression Badge
-                                      Semantics(
-                                        button: true,
-                                        label: 'Play Level $currentLevel',
-                                        child: InkWell(
-                                          onTap: () => _onPlay(currentLevel),
-                                          borderRadius:
-                                              BorderRadius.circular(16.0),
-                                          child: Container(
-                                            padding: EdgeInsets.symmetric(
-                                              horizontal:
-                                                  isCompact ? 16.0 : 22.0,
-                                              vertical: isCompact ? 8.0 : 10.0,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: tokens.surface,
-                                              borderRadius:
-                                                  BorderRadius.circular(16.0),
-                                              border: Border.all(
-                                                color: tokens.threadFaint,
-                                                width: 1.0,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: tokens.ink
-                                                      .withValues(alpha: 0.04),
-                                                  blurRadius: 10,
-                                                  offset: const Offset(0, 3),
-                                                ),
-                                              ],
-                                            ),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  'Chapter $chapterNumber',
-                                                  style: tokens
-                                                      .typography.caption
-                                                      .copyWith(
-                                                    color: tokens.accent,
-                                                    fontWeight: FontWeight.w700,
-                                                    letterSpacing: 1.2,
-                                                    fontSize: 11.0,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 2.0),
-                                                Text(
-                                                  'Level $currentLevel',
-                                                  key: const Key(
-                                                      'lobby_level_number'),
-                                                  textAlign: TextAlign.center,
-                                                  style: tokens
-                                                      .typography.heading
-                                                      .copyWith(
-                                                    color: tokens.ink,
-                                                    fontWeight: FontWeight.w700,
-                                                    letterSpacing: 0.2,
-                                                    fontSize:
-                                                        isCompact ? 18.0 : 20.0,
-                                                  ),
-                                                ),
-                                                if (starsEarned > 0) ...[
-                                                  const SizedBox(height: 4.0),
-                                                  Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children:
-                                                        List.generate(3, (i) {
-                                                      final filled =
-                                                          i < starsEarned;
-                                                      return Padding(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                                horizontal:
-                                                                    2.0),
-                                                        child: Icon(
-                                                          filled
-                                                              ? Icons
-                                                                  .star_rounded
-                                                              : Icons
-                                                                  .star_border_rounded,
-                                                          size: 15.0,
-                                                          color: filled
-                                                              ? const Color(
-                                                                  0xFFE5A93C)
-                                                              : tokens
-                                                                  .threadFaint,
-                                                        ),
-                                                      );
-                                                    }),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                SizedBox(
+                                  height: isCompact
+                                      ? Primitives.space4
+                                      : Primitives.space8,
                                 ),
-
-                                const Spacer(flex: 3),
-
-                                // ── Primary Play Action Button ──────────────
-                                FilledButton(
-                                  key: const Key('lobby_play_button'),
-                                  onPressed: () => _onPlay(currentLevel),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: tokens.accent,
-                                    foregroundColor: tokens.onAccent,
-                                    minimumSize: Size.fromHeight(
-                                        isCompact ? 48.0 : 56.0),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(
-                                        Primitives.radiusButton,
-                                      ),
-                                    ),
-                                    elevation: 2,
-                                    shadowColor:
-                                        tokens.accent.withValues(alpha: 0.35),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Icon(
-                                        Icons.play_arrow_rounded,
-                                        size: 24.0,
-                                      ),
-                                      const SizedBox(width: Primitives.space8),
-                                      Text(
-                                        'Play',
-                                        style: tokens.typography.label.copyWith(
-                                          color: tokens.onAccent,
-                                          fontSize: isCompact ? 16.0 : 18.0,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 0.4,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: Primitives.space12),
                               ],
                             ),
                           ),
@@ -618,55 +274,747 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
-  Widget _buildArrowTile(
-    int index,
-    IconData icon,
-    Offset shift,
-    AppTokens tokens,
-    bool isCompact,
-  ) {
-    final isTapped = _tappedArrowIndex == index;
-    final size = isCompact ? 36.0 : 42.0;
-
-    return GestureDetector(
-      onTap: () => _onTapArrowTile(index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        transform: Matrix4.translationValues(
-          isTapped ? shift.dx : 0.0,
-          isTapped ? shift.dy : 0.0,
-          0.0,
-        ),
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color:
-              isTapped ? tokens.accent.withValues(alpha: 0.15) : tokens.surface,
-          borderRadius: BorderRadius.circular(10.0),
-          border: Border.all(
-            color: isTapped ? tokens.accent : tokens.threadFaint,
-            width: 1.0,
+  // ──────────────────────────────────────────────────────────────────────────
+  // Header Component
+  // ──────────────────────────────────────────────────────────────────────────
+  Widget _buildHeader({
+    required AppTokens tokens,
+    required int currentStreak,
+    required bool isSmallWidth,
+  }) {
+    return FadeTransition(
+      opacity: CurvedAnimation(
+        parent: _entranceController,
+        curve: const Interval(0.0, 0.45, curve: Curves.easeOutCubic),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Daily Streak Indicator Pill
+          Semantics(
+            button: true,
+            label: 'Streak: $currentStreak days',
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                key: const Key('lobby_streak_button'),
+                onTap: _onStreak,
+                borderRadius: BorderRadius.circular(20.0),
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isSmallWidth ? 10.0 : 14.0,
+                    vertical: 8.0,
+                  ),
+                  decoration: BoxDecoration(
+                    color: tokens.surface,
+                    borderRadius: BorderRadius.circular(20.0),
+                    border: Border.all(
+                      color: currentStreak > 0
+                          ? const Color(0xFFE9842B).withValues(alpha: 0.5)
+                          : tokens.threadFaint,
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: tokens.ink.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.local_fire_department_rounded,
+                        size: 20.0,
+                        color: currentStreak > 0
+                            ? const Color(0xFFE9842B)
+                            : tokens.inkMuted,
+                      ),
+                      const SizedBox(width: 6.0),
+                      Text(
+                        '$currentStreak',
+                        key: const Key('lobby_streak_text'),
+                        style: tokens.typography.body.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color:
+                              currentStreak > 0 ? tokens.ink : tokens.inkMuted,
+                          fontSize: 14.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: tokens.ink.withValues(alpha: 0.03),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+
+          // Quick Action Navigation Buttons
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Chapter & Level Browser Icon Button
+              Container(
+                decoration: BoxDecoration(
+                  color: tokens.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: tokens.threadFaint,
+                    width: 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: tokens.ink.withValues(alpha: 0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: Icon(
+                    Icons.grid_view_rounded,
+                    color: tokens.ink,
+                    size: 20.0,
+                  ),
+                  tooltip: 'Browse Chapters',
+                  onPressed: _onBrowseLevels,
+                  constraints: const BoxConstraints(
+                    minWidth: 42,
+                    minHeight: 42,
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+              const SizedBox(width: Primitives.space8),
+
+              // Settings Button
+              Container(
+                decoration: BoxDecoration(
+                  color: tokens.surface,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: tokens.threadFaint,
+                    width: 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: tokens.ink.withValues(alpha: 0.03),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  key: const Key('lobby_settings_button'),
+                  icon: Icon(
+                    Icons.settings_outlined,
+                    color: tokens.ink,
+                    size: 20.0,
+                  ),
+                  tooltip: 'Settings',
+                  onPressed: _onSettings,
+                  constraints: const BoxConstraints(
+                    minWidth: 42,
+                    minHeight: 42,
+                  ),
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Central Brand Identity
+  // ──────────────────────────────────────────────────────────────────────────
+  Widget _buildBrandIdentity({
+    required AppTokens tokens,
+    required bool isCompact,
+    required bool isVeryCompact,
+  }) {
+    final scaleAnimation = CurvedAnimation(
+      parent: _entranceController,
+      curve: const Interval(0.12, 0.60, curve: Curves.easeOutCubic),
+    );
+
+    return ScaleTransition(
+      scale: Tween<double>(begin: 0.94, end: 1.0).animate(scaleAnimation),
+      child: FadeTransition(
+        opacity: scaleAnimation,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Official Game Icon Emblem
+            Container(
+              width: isCompact ? 64.0 : 80.0,
+              height: isCompact ? 64.0 : 80.0,
+              decoration: BoxDecoration(
+                color: tokens.surface,
+                borderRadius: BorderRadius.circular(isCompact ? 18.0 : 22.0),
+                border: Border.all(
+                  color: tokens.threadFaint,
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: tokens.ink.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(isCompact ? 16.5 : 20.5),
+                child: Image.asset(
+                  'assets/icon.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+
+            SizedBox(
+              height: isCompact ? Primitives.space8 : Primitives.space16,
+            ),
+
+            // Game Wordmark
+            Text(
+              'ArrowZ',
+              key: const Key('lobby_game_title'),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: Primitives.fontDisplay,
+                fontSize: isCompact ? 36.0 : 42.0,
+                height: 1.1,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+                color: tokens.ink,
+              ),
+            ),
+            const SizedBox(height: 4.0),
+            Text(
+              'Thread Puzzle',
+              textAlign: TextAlign.center,
+              style: tokens.typography.caption.copyWith(
+                color: tokens.inkMuted,
+                letterSpacing: 2.4,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
-        child: Icon(
-          icon,
-          size: isCompact ? 16.0 : 18.0,
-          color: isTapped ? tokens.accent : tokens.inkMuted,
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Progression Card
+  // ──────────────────────────────────────────────────────────────────────────
+  Widget _buildProgressionCard({
+    required AppTokens tokens,
+    required int currentLevel,
+    required int chapterNumber,
+    required int levelInChapter,
+    required int starsEarned,
+    required bool isCompact,
+  }) {
+    final slideAnimation = CurvedAnimation(
+      parent: _entranceController,
+      curve: const Interval(0.35, 0.85, curve: Curves.easeOutCubic),
+    );
+
+    final chapterProgress = (levelInChapter / 20.0).clamp(0.05, 1.0);
+
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0.0, 0.10),
+        end: Offset.zero,
+      ).animate(slideAnimation),
+      child: FadeTransition(
+        opacity: slideAnimation,
+        child: Semantics(
+          button: true,
+          label: 'Current level: $currentLevel in chapter $chapterNumber',
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _onBrowseLevels,
+              borderRadius: BorderRadius.circular(18.0),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isCompact ? 16.0 : 20.0,
+                  vertical: isCompact ? 12.0 : 16.0,
+                ),
+                decoration: BoxDecoration(
+                  color: tokens.surface,
+                  borderRadius: BorderRadius.circular(18.0),
+                  border: Border.all(
+                    color: tokens.threadFaint,
+                    width: 1.0,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: tokens.ink.withValues(alpha: 0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Chapter header & stars / count
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'CHAPTER $chapterNumber',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: tokens.typography.caption.copyWith(
+                              color: tokens.accent,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.5,
+                              fontSize: 10.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8.0),
+                        if (starsEarned > 0)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(3, (i) {
+                              final filled = i < starsEarned;
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 1.5),
+                                child: Icon(
+                                  filled
+                                      ? Icons.star_rounded
+                                      : Icons.star_border_rounded,
+                                  size: 15.0,
+                                  color: filled
+                                      ? const Color(0xFFE5A93C)
+                                      : tokens.threadFaint,
+                                ),
+                              );
+                            }),
+                          )
+                        else
+                          Text(
+                            '$levelInChapter of 20',
+                            style: tokens.typography.caption.copyWith(
+                              color: tokens.inkMuted,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 11.0,
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 6.0),
+
+                    // Level Number & Chevron Indicator
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Level $currentLevel',
+                            key: const Key('lobby_level_number'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: tokens.typography.heading.copyWith(
+                              color: tokens.ink,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                              fontSize: isCompact ? 20.0 : 22.0,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: tokens.inkMuted,
+                          size: 20.0,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10.0),
+
+                    // Chapter Progress Indicator
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4.0),
+                      child: LinearProgressIndicator(
+                        value: chapterProgress,
+                        backgroundColor:
+                            tokens.threadFaint.withValues(alpha: 0.6),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(tokens.accent),
+                        minHeight: 4.0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Primary Play Button
+  // ──────────────────────────────────────────────────────────────────────────
+  Widget _buildPlayButton({
+    required AppTokens tokens,
+    required int currentLevel,
+    required bool isCompact,
+  }) {
+    final slideAnimation = CurvedAnimation(
+      parent: _entranceController,
+      curve: const Interval(0.50, 1.0, curve: Curves.easeOutCubic),
+    );
+
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0.0, 0.12),
+        end: Offset.zero,
+      ).animate(slideAnimation),
+      child: FadeTransition(
+        opacity: slideAnimation,
+        child: FilledButton(
+          key: const Key('lobby_play_button'),
+          onPressed: () => _onPlay(currentLevel),
+          style: FilledButton.styleFrom(
+            backgroundColor: tokens.accent,
+            foregroundColor: tokens.onAccent,
+            minimumSize: Size.fromHeight(isCompact ? 50.0 : 56.0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(Primitives.radiusButton),
+            ),
+            elevation: 2,
+            shadowColor: tokens.accent.withValues(alpha: 0.35),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.play_arrow_rounded,
+                size: 26.0,
+              ),
+              const SizedBox(width: Primitives.space8),
+              Text(
+                'Play',
+                style: tokens.typography.label.copyWith(
+                  color: tokens.onAccent,
+                  fontSize: isCompact ? 16.5 : 18.0,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Custom painter for serene, ambient geometric thread lines across the lobby background.
+// ────────────────────────────────────────────────────────────────────────────
+// Interactive Miniature Puzzle Showcase Widget
+// ────────────────────────────────────────────────────────────────────────────
+class _InteractivePuzzlePreview extends StatefulWidget {
+  const _InteractivePuzzlePreview({
+    required this.tokens,
+    required this.isCompact,
+  });
+
+  final AppTokens tokens;
+  final bool isCompact;
+
+  @override
+  State<_InteractivePuzzlePreview> createState() =>
+      _InteractivePuzzlePreviewState();
+}
+
+class _InteractivePuzzlePreviewState extends State<_InteractivePuzzlePreview>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  final List<double> _slideProgress = [0.0, 0.0, 0.0, 0.0];
+  final List<bool> _isExiting = [false, false, false, false];
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _pulseController.value = 0.5;
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  void _onTapArrow(int index) {
+    if (_isExiting[index]) return;
+    setState(() {
+      _isExiting[index] = true;
+      _slideProgress[index] = 1.0;
+    });
+
+    // Reset back to starting position smoothly
+    Future.delayed(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      setState(() {
+        _slideProgress[index] = 0.0;
+        _isExiting[index] = false;
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = widget.tokens;
+    final width = widget.isCompact ? 200.0 : 230.0;
+    final height = widget.isCompact ? 96.0 : 110.0;
+
+    return Center(
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: tokens.surface,
+          borderRadius: BorderRadius.circular(20.0),
+          border: Border.all(
+            color: tokens.threadFaint,
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: tokens.ink.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(19.0),
+          child: Stack(
+            children: [
+              // Canvas painting grid dots & interactive arrow threads
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      painter: _MiniBoardPainter(
+                        tokens: tokens,
+                        pulseValue: _pulseController.value,
+                        slideProgress: _slideProgress,
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // 4 Interactive Tap Zones overlaying the 4 arrow threads
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: () => _onTapArrow(0),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: () => _onTapArrow(1),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: () => _onTapArrow(2),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: () => _onTapArrow(3),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Custom Painter for Miniature Puzzle Showcase
+// ────────────────────────────────────────────────────────────────────────────
+class _MiniBoardPainter extends CustomPainter {
+  const _MiniBoardPainter({
+    required this.tokens,
+    required this.pulseValue,
+    required this.slideProgress,
+  });
+
+  final AppTokens tokens;
+  final double pulseValue;
+  final List<double> slideProgress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const cols = 5;
+    const rows = 3;
+    final cellW = size.width / (cols + 0.4);
+    final cellH = size.height / (rows + 0.4);
+    final startX = (size.width - (cols - 1) * cellW) / 2.0;
+    final startY = (size.height - (rows - 1) * cellH) / 2.0;
+
+    // 1. Lattice Grid Dots
+    final dotPaint = Paint()
+      ..color = tokens.gridDot.withValues(alpha: 0.85)
+      ..style = PaintingStyle.fill;
+
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        canvas.drawCircle(
+          Offset(startX + c * cellW, startY + r * cellH),
+          1.8,
+          dotPaint,
+        );
+      }
+    }
+
+    final threadPaint = Paint()
+      ..color = tokens.thread
+      ..strokeWidth = 3.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    final accentThreadPaint = Paint()
+      ..color = tokens.accent
+      ..strokeWidth = 3.6
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    final subtleOffset = (pulseValue - 0.5) * 2.0;
+
+    // Arrow 0: Upward thread (Col 1, Row 2 -> Row 1)
+    _drawThread(
+      canvas: canvas,
+      p1: Offset(startX + 1 * cellW, startY + 2 * cellH),
+      p2: Offset(startX + 1 * cellW, startY + 1 * cellH),
+      dirAngle: -math.pi / 2,
+      paint: accentThreadPaint,
+      slideOffset: Offset(0, -slideProgress[0] * cellH * 1.5 + subtleOffset),
+      alpha: 1.0 - slideProgress[0],
+    );
+
+    // Arrow 1: Rightward thread (Col 1, Row 0 -> Col 2, Row 0)
+    _drawThread(
+      canvas: canvas,
+      p1: Offset(startX + 1 * cellW, startY + 0 * cellH),
+      p2: Offset(startX + 2 * cellW, startY + 0 * cellH),
+      dirAngle: 0.0,
+      paint: threadPaint,
+      slideOffset: Offset(slideProgress[1] * cellW * 1.5 - subtleOffset, 0),
+      alpha: 1.0 - slideProgress[1],
+    );
+
+    // Arrow 2: Downward thread (Col 3, Row 0 -> Row 1)
+    _drawThread(
+      canvas: canvas,
+      p1: Offset(startX + 3 * cellW, startY + 0 * cellH),
+      p2: Offset(startX + 3 * cellW, startY + 1 * cellH),
+      dirAngle: math.pi / 2,
+      paint: threadPaint,
+      slideOffset: Offset(0, slideProgress[2] * cellH * 1.5 + subtleOffset),
+      alpha: 1.0 - slideProgress[2],
+    );
+
+    // Arrow 3: Leftward thread (Col 4, Row 2 -> Col 3, Row 2)
+    _drawThread(
+      canvas: canvas,
+      p1: Offset(startX + 4 * cellW, startY + 2 * cellH),
+      p2: Offset(startX + 3 * cellW, startY + 2 * cellH),
+      dirAngle: math.pi,
+      paint: accentThreadPaint,
+      slideOffset: Offset(-slideProgress[3] * cellW * 1.5 - subtleOffset, 0),
+      alpha: 1.0 - slideProgress[3],
+    );
+  }
+
+  void _drawThread({
+    required Canvas canvas,
+    required Offset p1,
+    required Offset p2,
+    required double dirAngle,
+    required Paint paint,
+    required Offset slideOffset,
+    required double alpha,
+  }) {
+    if (alpha <= 0.0) return;
+
+    final effectivePaint = Paint()
+      ..color =
+          paint.color.withValues(alpha: paint.color.a * alpha.clamp(0.0, 1.0))
+      ..strokeWidth = paint.strokeWidth
+      ..strokeCap = paint.strokeCap
+      ..strokeJoin = paint.strokeJoin
+      ..style = paint.style;
+
+    final shiftedP1 = p1 + slideOffset;
+    final shiftedP2 = p2 + slideOffset;
+
+    canvas.drawLine(shiftedP1, shiftedP2, effectivePaint);
+
+    drawChevronArrowhead(
+      canvas: canvas,
+      headPoint: shiftedP2,
+      angleRad: dirAngle,
+      armLengthPx: 10.5,
+      paint: effectivePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniBoardPainter oldDelegate) {
+    return oldDelegate.pulseValue != pulseValue ||
+        oldDelegate.slideProgress != slideProgress ||
+        oldDelegate.tokens != tokens;
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Ambient Lobby Background Painter
+// ────────────────────────────────────────────────────────────────────────────
 class _LobbyBackgroundPainter extends CustomPainter {
   const _LobbyBackgroundPainter({
     required this.color,

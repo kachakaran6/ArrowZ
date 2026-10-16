@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
+import 'package:arrowtapout/platform/share_service.dart';
 import 'package:flutter/material.dart';
 
 class CompleteSheet extends StatefulWidget {
@@ -16,6 +17,7 @@ class CompleteSheet extends StatefulWidget {
     required this.mistakes,
     required this.onNextLevel,
     required this.onLevels,
+    this.elapsedSeconds,
   });
 
   final int levelId;
@@ -26,6 +28,7 @@ class CompleteSheet extends StatefulWidget {
   final int mistakes;
   final VoidCallback onNextLevel;
   final VoidCallback onLevels;
+  final int? elapsedSeconds;
 
   @override
   State<CompleteSheet> createState() => _CompleteSheetState();
@@ -65,9 +68,17 @@ class _CompleteSheetState extends State<CompleteSheet>
       title = 'Level complete';
     }
 
-    final statsText = widget.mistakes == 0
-        ? '${widget.threadsCleared} threads, zero mistakes'
-        : '${widget.threadsCleared} threads, ${widget.mistakes} mistake${widget.mistakes == 1 ? '' : 's'}';
+    String statsText = widget.mistakes == 0
+        ? '${widget.threadsCleared} threads · zero mistakes'
+        : '${widget.threadsCleared} threads · ${widget.mistakes} mistake${widget.mistakes == 1 ? '' : 's'}';
+
+    String? formattedTime;
+    if (widget.elapsedSeconds != null && widget.elapsedSeconds! > 0) {
+      final m = widget.elapsedSeconds! ~/ 60;
+      final s = widget.elapsedSeconds! % 60;
+      formattedTime = '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+      statsText = '$statsText · ⏱️ $formattedTime';
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -121,7 +132,10 @@ class _CompleteSheetState extends State<CompleteSheet>
             Center(
               child: Text(
                 statsText,
-                style: tokens.typography.body.copyWith(color: tokens.inkMuted),
+                style: tokens.typography.body.copyWith(
+                  color: tokens.inkMuted,
+                  fontSize: 14.0,
+                ),
               ),
             ),
             const SizedBox(height: Primitives.space24),
@@ -146,20 +160,48 @@ class _CompleteSheetState extends State<CompleteSheet>
               ),
               const SizedBox(height: Primitives.space12),
             ],
-            OutlinedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                widget.onLevels();
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: tokens.ink,
-                side: BorderSide(color: tokens.threadFaint, width: 1.5),
-                minimumSize: const Size.fromHeight(48.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Primitives.radiusButton),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.onLevels();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: tokens.ink,
+                      side: BorderSide(color: tokens.threadFaint, width: 1.5),
+                      minimumSize: const Size.fromHeight(48.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(Primitives.radiusButton),
+                      ),
+                    ),
+                    child: Text('Levels', style: tokens.typography.label),
+                  ),
                 ),
-              ),
-              child: Text('Levels', style: tokens.typography.label),
+                const SizedBox(width: Primitives.space12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ShareService.shareLevelComplete(
+                      levelId: widget.levelId,
+                      timeFormatted: formattedTime,
+                      stars: widget.stars,
+                    );
+                  },
+                  icon: Icon(Icons.share_rounded, size: 18.0, color: tokens.accent),
+                  label: Text('Share', style: tokens.typography.label.copyWith(color: tokens.accent)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: tokens.accent,
+                    side: BorderSide(color: tokens.accent.withValues(alpha: 0.5), width: 1.5),
+                    minimumSize: const Size(100.0, 48.0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(Primitives.radiusButton),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

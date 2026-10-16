@@ -5,7 +5,7 @@ abstract final class ComponentTokens {
   static const double pagePadding = 20.0;
   static const double boardVerticalPad = 12.0;
   static const double maxCellSize = 46.0;
-  static const double zoomThresholdCellSize = 20.0;
+  static const double zoomThresholdCellSize = 32.0;
   static const double minTapTargetSize = 48.0;
   static const double mistakeDotSize = 8.0;
   static const double mistakeDotGap = 10.0;
@@ -14,12 +14,12 @@ abstract final class ComponentTokens {
 
   /// Computes the thread stroke width for a given [cellSize] in logical pixels.
   static double threadStroke(double cellSize) {
-    return (cellSize * 0.16).clamp(3.8, 6.8);
+    return (cellSize * 0.14).clamp(3.0, 5.5);
   }
 
   /// Computes the chevron arrowhead arm length for a given [cellSize].
   static double arrowheadArm(double cellSize) {
-    return (cellSize * 0.36).clamp(8.0, 16.0);
+    return (cellSize * 0.44).clamp(10.0, 18.0);
   }
 
   /// Computes the grid dot radius for a given [cellSize].
@@ -37,20 +37,26 @@ abstract final class ComponentTokens {
   }
 
   /// Computes optimal lattice cell size:
-  /// `cell = (screenWidth - 2*pagePad) / (cols - 1)`, clamped to at most
-  /// `(boardRegionHeight - 2*12dp) / (rows - 1)`, at most 46dp, snapped to whole physical pixel.
+  /// Ensures the grid, hit padding, and arrowheads pointing outward from border nodes
+  /// have complete clearance and never get clipped by the viewport boundaries.
   static double computeLatticeCellSize({
     required double screenWidth,
     required double boardRegionHeight,
     required int rows,
     required int cols,
     double devicePixelRatio = 1.0,
+    bool isInnerContainer = false,
   }) {
-    final denomW = math.max(1, cols - 1);
-    final denomH = math.max(1, rows - 1);
+    // Outermost border nodes need headroom for outward-pointing arrowheads & padding (~0.7 cell each side)
+    const clearanceFactor = 1.4;
+    final denomW = math.max(1.0, (cols - 1) + clearanceFactor);
+    final denomH = math.max(1.0, (rows - 1) + clearanceFactor);
 
-    final rawW = (screenWidth - 2 * pagePadding) / denomW;
-    final maxH = (boardRegionHeight - 2 * boardVerticalPad) / denomH;
+    const padW = 2 * pagePadding;
+    const padH = 2 * boardVerticalPad;
+
+    final rawW = math.max(0.0, (screenWidth - padW) / denomW);
+    final maxH = math.max(0.0, (boardRegionHeight - padH) / denomH);
 
     final rawCell = math.min(rawW, maxH).clamp(0.0, maxCellSize);
     return snapCellSize(rawCell, devicePixelRatio);

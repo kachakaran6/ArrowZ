@@ -1,8 +1,10 @@
+import 'package:arrowtapout/data/arrow_skin.dart';
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
+import 'package:arrowtapout/platform/share_service.dart';
 import 'package:arrowtapout/router/routes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,6 +36,128 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         });
       }
     } catch (_) {}
+  }
+
+  void _showArrowSkinSheet() {
+    final tokens = context.tokens;
+    final haptics = ref.read(hapticsServiceProvider);
+    final currentSkin = ref.read(settingsProvider).arrowSkin;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: tokens.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(Primitives.radiusSheet),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Primitives.space20,
+          vertical: Primitives.space20,
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 36.0,
+                  height: 4.0,
+                  decoration: BoxDecoration(
+                    color: tokens.threadFaint,
+                    borderRadius: BorderRadius.circular(2.0),
+                  ),
+                ),
+              ),
+              const SizedBox(height: Primitives.space16),
+              Center(
+                child: Text(
+                  'Choose Arrow Skin',
+                  style: tokens.typography.title,
+                ),
+              ),
+              const SizedBox(height: Primitives.space4),
+              Center(
+                child: Text(
+                  'Customise arrowheads and emojis across all levels',
+                  style: tokens.typography.caption.copyWith(color: tokens.inkMuted),
+                ),
+              ),
+              const SizedBox(height: Primitives.space16),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: ArrowSkin.values.length,
+                  separatorBuilder: (_, __) => Divider(
+                    color: tokens.threadFaint,
+                    height: 1.0,
+                    indent: 12.0,
+                    endIndent: 12.0,
+                  ),
+                  itemBuilder: (context, index) {
+                    final skin = ArrowSkin.values[index];
+                    final isSelected = skin == currentSkin;
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: Primitives.space12,
+                        vertical: Primitives.space4,
+                      ),
+                      leading: Container(
+                        width: 44.0,
+                        height: 44.0,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? tokens.accent.withValues(alpha: 0.15)
+                              : tokens.surfaceRaised,
+                          borderRadius: BorderRadius.circular(12.0),
+                          border: Border.all(
+                            color: isSelected
+                                ? tokens.accent
+                                : tokens.threadFaint,
+                            width: 1.5,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          skin.previewIcon,
+                          style: const TextStyle(fontSize: 22.0),
+                        ),
+                      ),
+                      title: Text(
+                        skin.displayName,
+                        style: tokens.typography.body.copyWith(
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? tokens.accent : tokens.ink,
+                        ),
+                      ),
+                      subtitle: Text(
+                        skin.description,
+                        style: tokens.typography.caption,
+                      ),
+                      trailing: isSelected
+                          ? Icon(Icons.check_circle_rounded,
+                              color: tokens.accent, size: 24.0)
+                          : null,
+                      onTap: () {
+                        haptics.selection();
+                        ref.read(settingsProvider.notifier).setArrowSkin(skin);
+                        Navigator.of(ctx).pop();
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showResetConfirmSheet() {
@@ -147,8 +271,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             vertical: Primitives.space16,
           ),
           children: [
-            // Section: Appearance
-            _SectionHeader(title: 'Appearance', tokens: tokens),
+            // Section: Appearance & Customisation
+            _SectionHeader(title: 'Customisation', tokens: tokens),
             Card(
               color: tokens.surface,
               elevation: 0,
@@ -156,19 +280,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 borderRadius: BorderRadius.circular(Primitives.radiusCard),
                 side: BorderSide(color: tokens.threadFaint, width: 1.0),
               ),
-              child: ListTile(
-                title: Text('Theme', style: tokens.typography.body),
-                subtitle: Text(
-                  settings.themeChoice.label,
-                  style:
-                      tokens.typography.caption.copyWith(color: tokens.accent),
-                ),
-                trailing:
-                    Icon(Icons.chevron_right_rounded, color: tokens.inkMuted),
-                onTap: () {
-                  haptics.selection();
-                  context.push(Routes.theme);
-                },
+              child: Column(
+                children: [
+                  ListTile(
+                    title: Text('Arrow Skin', style: tokens.typography.body),
+                    subtitle: Text(
+                      '${settings.arrowSkin.previewIcon}  ${settings.arrowSkin.displayName}',
+                      style: tokens.typography.caption
+                          .copyWith(color: tokens.accent),
+                    ),
+                    trailing: Icon(Icons.chevron_right_rounded,
+                        color: tokens.inkMuted),
+                    onTap: () {
+                      haptics.selection();
+                      _showArrowSkinSheet();
+                    },
+                  ),
+                  Divider(
+                    color: tokens.threadFaint,
+                    height: 1.0,
+                    indent: 16.0,
+                    endIndent: 16.0,
+                  ),
+                  ListTile(
+                    title: Text('Theme', style: tokens.typography.body),
+                    subtitle: Text(
+                      settings.themeChoice.label,
+                      style: tokens.typography.caption
+                          .copyWith(color: tokens.accent),
+                    ),
+                    trailing: Icon(Icons.chevron_right_rounded,
+                        color: tokens.inkMuted),
+                    onTap: () {
+                      haptics.selection();
+                      context.push(Routes.theme);
+                    },
+                  ),
+                ],
               ),
             ),
 
@@ -270,6 +418,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               child: Column(
                 children: [
+                  ListTile(
+                    title: Text('Share ArrowZ', style: tokens.typography.body),
+                    subtitle: Text('Invite friends to play',
+                        style: tokens.typography.caption),
+                    trailing: Icon(Icons.share_rounded, color: tokens.accent),
+                    onTap: () {
+                      haptics.selection();
+                      ShareService.shareApp();
+                    },
+                  ),
+                  Divider(
+                      color: tokens.threadFaint,
+                      height: 1.0,
+                      indent: 16.0,
+                      endIndent: 16.0),
                   ListTile(
                     title: Text('Version', style: tokens.typography.body),
                     trailing: Text(_version, style: tokens.typography.caption),

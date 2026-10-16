@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:arrowtapout/data/arrow_skin.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/component_tokens.dart';
 import 'package:arrowtapout/engine/cell.dart';
@@ -17,29 +18,37 @@ void drawChevronArrowhead({
   required ui.Paint paint,
   ui.Paint? shadowPaint,
 }) {
-  final noseDist = armLengthPx * 0.45;
-  final wingDist = armLengthPx * 0.70;
-  const wingAngle = 142.0 * math.pi / 180.0;
-  final notchDist = armLengthPx * 0.10;
+  final arrowLength = armLengthPx;
+  final wingSpan = armLengthPx * 0.95;
+  final halfWingSpan = wingSpan / 2.0;
+  final wingSetback = math.max(1.5, paint.strokeWidth * 0.35);
+  final notchForward = math.max(1.0, paint.strokeWidth * 0.25);
+
+  final cosA = math.cos(angleRad);
+  final sinA = math.sin(angleRad);
+  final fx = cosA;
+  final fy = sinA;
+  final px = -sinA;
+  final py = cosA;
 
   final tip = ui.Offset(
-    headPoint.dx + math.cos(angleRad) * noseDist,
-    headPoint.dy + math.sin(angleRad) * noseDist,
+    headPoint.dx + fx * arrowLength,
+    headPoint.dy + fy * arrowLength,
   );
 
   final leftWing = ui.Offset(
-    headPoint.dx + math.cos(angleRad - wingAngle) * wingDist,
-    headPoint.dy + math.sin(angleRad - wingAngle) * wingDist,
-  );
-
-  final rightWing = ui.Offset(
-    headPoint.dx + math.cos(angleRad + wingAngle) * wingDist,
-    headPoint.dy + math.sin(angleRad + wingAngle) * wingDist,
+    headPoint.dx - fx * wingSetback + px * halfWingSpan,
+    headPoint.dy - fy * wingSetback + py * halfWingSpan,
   );
 
   final notch = ui.Offset(
-    headPoint.dx - math.cos(angleRad) * notchDist,
-    headPoint.dy - math.sin(angleRad) * notchDist,
+    headPoint.dx + fx * notchForward,
+    headPoint.dy + fy * notchForward,
+  );
+
+  final rightWing = ui.Offset(
+    headPoint.dx - fx * wingSetback - px * halfWingSpan,
+    headPoint.dy - fy * wingSetback - py * halfWingSpan,
   );
 
   final path = ui.Path()
@@ -61,18 +70,16 @@ void drawChevronArrowhead({
     ..style = PaintingStyle.fill
     ..color = paint.color
     ..isAntiAlias = true;
-
   canvas.drawPath(path, fillPaint);
 
-  // Stroke border for crisp rounding
+  // Stroke border with rounded joins for crisp, tactile finish
   final strokeBorder = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = math.max(1.5, paint.strokeWidth * 0.35)
+    ..strokeWidth = math.max(1.8, paint.strokeWidth * 0.45)
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round
     ..color = paint.color
     ..isAntiAlias = true;
-
   canvas.drawPath(path, strokeBorder);
 }
 
@@ -86,6 +93,7 @@ class BoardPainter extends CustomPainter {
     required this.tokens,
     required this.animator,
     required this.reduceMotion,
+    this.arrowSkin = ArrowSkin.chevron,
   })  : _maskAdjacentNodes = _computeMaskNodes(level),
         super(repaint: animator);
 
@@ -96,6 +104,7 @@ class BoardPainter extends CustomPainter {
   final AppTokens tokens;
   final BoardAnimator animator;
   final bool reduceMotion;
+  final ArrowSkin arrowSkin;
   final Set<Cell> _maskAdjacentNodes;
 
   Set<int> get _effectiveActiveIds => getActiveIds?.call() ?? activeIds;
@@ -139,7 +148,7 @@ class BoardPainter extends CustomPainter {
       ..color = tokens.gridDot
       ..isAntiAlias = true;
 
-    if (level.shape == 'rect') {
+    if (level.shape == 'rect' || level.shape == 'square') {
       for (var r = 0; r < level.rows; r++) {
         for (var c = 0; c < level.cols; c++) {
           canvas.drawCircle(
@@ -169,29 +178,37 @@ class BoardPainter extends CustomPainter {
     required ui.Paint paint,
     ui.Paint? shadowPaint,
   }) {
-    final noseDist = armLengthPx * 0.45;
-    final wingDist = armLengthPx * 0.70;
-    const wingAngle = 142.0 * math.pi / 180.0;
-    final notchDist = armLengthPx * 0.10;
+    final arrowLength = armLengthPx;
+    final wingSpan = armLengthPx * 0.95;
+    final halfWingSpan = wingSpan / 2.0;
+    final wingSetback = math.max(1.5, paint.strokeWidth * 0.35);
+    final notchForward = math.max(1.0, paint.strokeWidth * 0.25);
+
+    final cosA = math.cos(angleRad);
+    final sinA = math.sin(angleRad);
+    final fx = cosA;
+    final fy = sinA;
+    final px = -sinA;
+    final py = cosA;
 
     final tip = ui.Offset(
-      headPoint.dx + math.cos(angleRad) * noseDist,
-      headPoint.dy + math.sin(angleRad) * noseDist,
+      headPoint.dx + fx * arrowLength,
+      headPoint.dy + fy * arrowLength,
     );
 
     final leftWing = ui.Offset(
-      headPoint.dx + math.cos(angleRad - wingAngle) * wingDist,
-      headPoint.dy + math.sin(angleRad - wingAngle) * wingDist,
-    );
-
-    final rightWing = ui.Offset(
-      headPoint.dx + math.cos(angleRad + wingAngle) * wingDist,
-      headPoint.dy + math.sin(angleRad + wingAngle) * wingDist,
+      headPoint.dx - fx * wingSetback + px * halfWingSpan,
+      headPoint.dy - fy * wingSetback + py * halfWingSpan,
     );
 
     final notch = ui.Offset(
-      headPoint.dx - math.cos(angleRad) * notchDist,
-      headPoint.dy - math.sin(angleRad) * notchDist,
+      headPoint.dx + fx * notchForward,
+      headPoint.dy + fy * notchForward,
+    );
+
+    final rightWing = ui.Offset(
+      headPoint.dx - fx * wingSetback - px * halfWingSpan,
+      headPoint.dy - fy * wingSetback - py * halfWingSpan,
     );
 
     _arrowPath.reset();
@@ -212,12 +229,247 @@ class BoardPainter extends CustomPainter {
     canvas.drawPath(_arrowPath, _arrowFillPaint);
 
     _arrowStrokePaint.color = paint.color;
-    _arrowStrokePaint.strokeWidth = math.max(1.5, paint.strokeWidth * 0.35);
+    _arrowStrokePaint.strokeWidth = math.max(1.8, paint.strokeWidth * 0.45);
     canvas.drawPath(_arrowPath, _arrowStrokePaint);
   }
 
+  void _renderRoundedArrowhead({
+    required ui.Canvas canvas,
+    required ui.Offset headPoint,
+    required double angleRad,
+    required double armLengthPx,
+    required ui.Paint paint,
+    ui.Paint? shadowPaint,
+  }) {
+    final arrowLength = armLengthPx;
+    final wingSpan = armLengthPx * 0.95;
+    final halfWingSpan = wingSpan / 2.0;
+    final wingSetback = math.max(1.5, paint.strokeWidth * 0.35);
+
+    final cosA = math.cos(angleRad);
+    final sinA = math.sin(angleRad);
+    final fx = cosA;
+    final fy = sinA;
+    final px = -sinA;
+    final py = cosA;
+
+    final tip = ui.Offset(
+      headPoint.dx + fx * arrowLength,
+      headPoint.dy + fy * arrowLength,
+    );
+    final leftWing = ui.Offset(
+      headPoint.dx - fx * wingSetback + px * halfWingSpan,
+      headPoint.dy - fy * wingSetback + py * halfWingSpan,
+    );
+    final rightWing = ui.Offset(
+      headPoint.dx - fx * wingSetback - px * halfWingSpan,
+      headPoint.dy - fy * wingSetback - py * halfWingSpan,
+    );
+
+    final midLeft = ui.Offset(
+      headPoint.dx + fx * (arrowLength * 0.35) + px * (halfWingSpan * 0.65),
+      headPoint.dy + fy * (arrowLength * 0.35) + py * (halfWingSpan * 0.65),
+    );
+    final midRight = ui.Offset(
+      headPoint.dx + fx * (arrowLength * 0.35) - px * (halfWingSpan * 0.65),
+      headPoint.dy + fy * (arrowLength * 0.35) - py * (halfWingSpan * 0.65),
+    );
+
+    _arrowPath.reset();
+    _arrowPath.moveTo(tip.dx, tip.dy);
+    _arrowPath.quadraticBezierTo(midLeft.dx, midLeft.dy, leftWing.dx, leftWing.dy);
+    _arrowPath.lineTo(headPoint.dx, headPoint.dy);
+    _arrowPath.lineTo(rightWing.dx, rightWing.dy);
+    _arrowPath.quadraticBezierTo(midRight.dx, midRight.dy, tip.dx, tip.dy);
+    _arrowPath.close();
+
+    if (shadowPaint != null) {
+      canvas.save();
+      canvas.translate(0, 2.0);
+      canvas.drawPath(_arrowPath, shadowPaint);
+      canvas.restore();
+    }
+
+    _arrowFillPaint.color = paint.color;
+    canvas.drawPath(_arrowPath, _arrowFillPaint);
+
+    _arrowStrokePaint.color = paint.color;
+    _arrowStrokePaint.strokeWidth = math.max(1.8, paint.strokeWidth * 0.45);
+    canvas.drawPath(_arrowPath, _arrowStrokePaint);
+  }
+
+  void _renderDiamondArrowhead({
+    required ui.Canvas canvas,
+    required ui.Offset headPoint,
+    required double angleRad,
+    required double armLengthPx,
+    required ui.Paint paint,
+    ui.Paint? shadowPaint,
+  }) {
+    final arrowLength = armLengthPx * 0.95;
+    final backDist = armLengthPx * 0.35;
+    final sideDist = armLengthPx * 0.45;
+
+    final cosA = math.cos(angleRad);
+    final sinA = math.sin(angleRad);
+    final fx = cosA;
+    final fy = sinA;
+    final px = -sinA;
+    final py = cosA;
+
+    final tip = ui.Offset(
+      headPoint.dx + fx * arrowLength,
+      headPoint.dy + fy * arrowLength,
+    );
+    final back = ui.Offset(
+      headPoint.dx - fx * backDist,
+      headPoint.dy - fy * backDist,
+    );
+    final leftSide = ui.Offset(
+      headPoint.dx + px * sideDist,
+      headPoint.dy + py * sideDist,
+    );
+    final rightSide = ui.Offset(
+      headPoint.dx - px * sideDist,
+      headPoint.dy - py * sideDist,
+    );
+
+    _arrowPath.reset();
+    _arrowPath.moveTo(tip.dx, tip.dy);
+    _arrowPath.lineTo(leftSide.dx, leftSide.dy);
+    _arrowPath.lineTo(back.dx, back.dy);
+    _arrowPath.lineTo(rightSide.dx, rightSide.dy);
+    _arrowPath.close();
+
+    if (shadowPaint != null) {
+      canvas.save();
+      canvas.translate(0, 2.0);
+      canvas.drawPath(_arrowPath, shadowPaint);
+      canvas.restore();
+    }
+
+    _arrowFillPaint.color = paint.color;
+    canvas.drawPath(_arrowPath, _arrowFillPaint);
+
+    _arrowStrokePaint.color = paint.color;
+    _arrowStrokePaint.strokeWidth = math.max(1.8, paint.strokeWidth * 0.45);
+    canvas.drawPath(_arrowPath, _arrowStrokePaint);
+  }
+
+  void _renderEmojiArrowhead({
+    required ui.Canvas canvas,
+    required ui.Offset headPoint,
+    required double angleRad,
+    required double size,
+    required String emoji,
+  }) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: emoji,
+        style: TextStyle(
+          fontSize: size.clamp(14.0, 32.0),
+          fontFamilyFallback: const [
+            'Noto Color Emoji',
+            'Apple Color Emoji',
+            'Segoe UI Emoji',
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    canvas.save();
+    canvas.translate(headPoint.dx, headPoint.dy);
+    // Align emoji facing direction
+    final extraAngle = emoji == '🚀' ? (math.pi / 4) : 0.0;
+    canvas.rotate(angleRad + extraAngle);
+    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+    canvas.restore();
+  }
+
+  void _renderArrowhead({
+    required ui.Canvas canvas,
+    required ui.Offset headPoint,
+    required double angleRad,
+    required double armLengthPx,
+    required ui.Paint paint,
+    required int threadId,
+    ui.Paint? shadowPaint,
+  }) {
+    switch (arrowSkin) {
+      case ArrowSkin.chevron:
+        _renderChevronArrowhead(
+          canvas: canvas,
+          headPoint: headPoint,
+          angleRad: angleRad,
+          armLengthPx: armLengthPx,
+          paint: paint,
+          shadowPaint: shadowPaint,
+        );
+      case ArrowSkin.rounded:
+        _renderRoundedArrowhead(
+          canvas: canvas,
+          headPoint: headPoint,
+          angleRad: angleRad,
+          armLengthPx: armLengthPx,
+          paint: paint,
+          shadowPaint: shadowPaint,
+        );
+      case ArrowSkin.diamond:
+        _renderDiamondArrowhead(
+          canvas: canvas,
+          headPoint: headPoint,
+          angleRad: angleRad,
+          armLengthPx: armLengthPx,
+          paint: paint,
+          shadowPaint: shadowPaint,
+        );
+      case ArrowSkin.rockets:
+        _renderEmojiArrowhead(
+          canvas: canvas,
+          headPoint: headPoint,
+          angleRad: angleRad,
+          size: armLengthPx * 2.3,
+          emoji: '🚀',
+        );
+      case ArrowSkin.animals:
+        const animals = ['🦊', '🐱', '🐶', '🐰', '🐼', '🐯', '🦁', '🐸', '🐵', '🦉'];
+        final emoji = animals[threadId.abs() % animals.length];
+        _renderEmojiArrowhead(
+          canvas: canvas,
+          headPoint: headPoint,
+          angleRad: angleRad,
+          size: armLengthPx * 2.3,
+          emoji: emoji,
+        );
+      case ArrowSkin.emojis:
+        const emojis = ['⚡', '⭐', '🎯', '🔥', '💎', '🌟', '🍀', '🪐', '🌈', '🔮'];
+        final emoji = emojis[threadId.abs() % emojis.length];
+        _renderEmojiArrowhead(
+          canvas: canvas,
+          headPoint: headPoint,
+          angleRad: angleRad,
+          size: armLengthPx * 2.3,
+          emoji: emoji,
+        );
+      case ArrowSkin.random:
+        const fun = [
+          '🚀', '⚡', '⭐', '🎯', '🔥', '💎', '🌟', '🍀', '🦊', '🐱', '🐶',
+          '🐰', '🪐', '🌈', '🔮', '🎈', '🍕', '⚽'
+        ];
+        final emoji = fun[threadId.abs() % fun.length];
+        _renderEmojiArrowhead(
+          canvas: canvas,
+          headPoint: headPoint,
+          angleRad: angleRad,
+          size: armLengthPx * 2.3,
+          emoji: emoji,
+        );
+    }
+  }
+
   static Set<Cell> _computeMaskNodes(Level level) {
-    if (level.shape == 'rect') {
+    if (level.shape == 'rect' || level.shape == 'square') {
       return const {};
     }
     final occupied = <Cell>{};
@@ -294,6 +546,14 @@ class BoardPainter extends CustomPainter {
           _shadowPaint.color =
               tokens.ink.withValues(alpha: 0.12 * extracted.alpha);
           canvas.drawPath(extracted.visiblePath, _shadowPaint);
+          _renderArrowhead(
+            canvas: canvas,
+            headPoint: extracted.headPosition,
+            angleRad: extracted.headAngleRad,
+            armLengthPx: armLength,
+            paint: _shadowPaint,
+            threadId: tid,
+          );
         }
       } else {
         final activeWrongMove = animator.wrongMoves[tid];
@@ -310,6 +570,14 @@ class BoardPainter extends CustomPainter {
         }
         _shadowPaint.color = tokens.ink.withValues(alpha: 0.12);
         canvas.drawPath(geom.basePath, _shadowPaint);
+        _renderArrowhead(
+          canvas: canvas,
+          headPoint: geom.headOffset,
+          angleRad: geom.headAngle,
+          armLengthPx: armLength,
+          paint: _shadowPaint,
+          threadId: tid,
+        );
       }
       canvas.restore();
     }
@@ -335,12 +603,13 @@ class BoardPainter extends CustomPainter {
             tokens.thread.withValues(alpha: tokens.thread.a * extracted.alpha);
 
         canvas.drawPath(extracted.visiblePath, _threadPaint);
-        _renderChevronArrowhead(
+        _renderArrowhead(
           canvas: canvas,
           headPoint: extracted.headPosition,
           angleRad: extracted.headAngleRad,
           armLengthPx: armLength,
           paint: _threadPaint,
+          threadId: tid,
         );
       } else if (activeWrongMove != null ||
           animator.blockeds.containsKey(tid)) {
@@ -363,12 +632,13 @@ class BoardPainter extends CustomPainter {
         );
 
         canvas.drawPath(geom.basePath, _threadPaint);
-        _renderChevronArrowhead(
+        _renderArrowhead(
           canvas: canvas,
           headPoint: geom.headOffset,
           angleRad: geom.headAngle,
           armLengthPx: armLength,
           paint: _threadPaint,
+          threadId: tid,
         );
 
         canvas.restore();
@@ -396,24 +666,26 @@ class BoardPainter extends CustomPainter {
 
         if (entrance >= 1.0) {
           canvas.drawPath(geom.basePath, _threadPaint);
-          _renderChevronArrowhead(
+          _renderArrowhead(
             canvas: canvas,
             headPoint: geom.headOffset,
             angleRad: geom.headAngle,
             armLengthPx: armLength,
             paint: _threadPaint,
+            threadId: tid,
           );
         } else if (entrance > 0.0) {
           final alpha = entrance;
           _threadPaint.color = _threadPaint.color
               .withValues(alpha: _threadPaint.color.a * alpha);
           canvas.drawPath(geom.basePath, _threadPaint);
-          _renderChevronArrowhead(
+          _renderArrowhead(
             canvas: canvas,
             headPoint: geom.headOffset,
             angleRad: geom.headAngle,
             armLengthPx: armLength,
             paint: _threadPaint,
+            threadId: tid,
           );
         }
       }
@@ -429,6 +701,7 @@ class BoardPainter extends CustomPainter {
         oldDelegate.cellSize != cellSize ||
         oldDelegate.tokens != tokens ||
         oldDelegate.reduceMotion != reduceMotion ||
+        oldDelegate.arrowSkin != arrowSkin ||
         animator.hasActiveAnimations;
   }
 }

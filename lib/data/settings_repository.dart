@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:arrowtapout/data/arrow_skin.dart';
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/design/themes.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,24 +12,28 @@ class SettingsState {
     this.sound = true,
     this.haptics = true,
     this.reduceMotion = false,
+    this.arrowSkin = ArrowSkin.chevron,
   });
 
   final AppThemeMode themeChoice;
   final bool sound;
   final bool haptics;
   final bool reduceMotion;
+  final ArrowSkin arrowSkin;
 
   SettingsState copyWith({
     AppThemeMode? themeChoice,
     bool? sound,
     bool? haptics,
     bool? reduceMotion,
+    ArrowSkin? arrowSkin,
   }) {
     return SettingsState(
       themeChoice: themeChoice ?? this.themeChoice,
       sound: sound ?? this.sound,
       haptics: haptics ?? this.haptics,
       reduceMotion: reduceMotion ?? this.reduceMotion,
+      arrowSkin: arrowSkin ?? this.arrowSkin,
     );
   }
 
@@ -37,6 +42,7 @@ class SettingsState {
         'sound': sound,
         'haptics': haptics,
         'reduceMotion': reduceMotion,
+        'arrowSkin': arrowSkin.name,
       };
 
   factory SettingsState.fromJson(Map<String, dynamic> json) {
@@ -54,6 +60,7 @@ class SettingsState {
       sound: json['sound'] as bool? ?? true,
       haptics: json['haptics'] as bool? ?? true,
       reduceMotion: json['reduceMotion'] as bool? ?? false,
+      arrowSkin: ArrowSkin.fromId(json['arrowSkin'] as String?),
     );
   }
 }
@@ -101,6 +108,11 @@ class SettingsRepository extends StateNotifier<SettingsState> {
 
   Future<void> setReduceMotion(bool enabled) async {
     state = state.copyWith(reduceMotion: enabled);
+    await _save();
+  }
+
+  Future<void> setArrowSkin(ArrowSkin skin) async {
+    state = state.copyWith(arrowSkin: skin);
     await _save();
   }
 }
