@@ -1,11 +1,13 @@
+import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Provider for current selected [AppThemeMode].
-final themeModeProvider = StateProvider<AppThemeMode>((ref) {
-  return AppThemeMode.followSystem;
+final themeModeProvider = Provider<AppThemeMode>((ref) {
+  final settings = ref.watch(settingsProvider);
+  return settings.themeChoice;
 });
 
 /// Provider for active platform brightness.

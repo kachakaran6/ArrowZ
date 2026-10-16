@@ -302,18 +302,20 @@ class StreakRepository extends StateNotifier<StreakData> {
   /// The date of the last recorded qualifying level completion.
   DateTime? getLastQualifyingPlayDate() => state.lastQualifyingPlayDate;
 
-  /// Returns recent activity for the last [days] calendar days ending on today.
+  /// Returns recent activity for the 7 calendar days of the current week, starting on Sunday ("S M T W T F S").
   List<DailyActivity> getRecentActivity([int days = 7, DateTime? testNow]) {
     final today = normalizeDate(testNow ?? now);
+    final daysSinceSunday = today.weekday % 7;
+    final sunday = DateTime(today.year, today.month, today.day - daysSinceSunday);
     final list = <DailyActivity>[];
 
-    for (int i = days - 1; i >= 0; i--) {
-      final date = DateTime(today.year, today.month, today.day - i);
+    for (int i = 0; i < 7; i++) {
+      final date = DateTime(sunday.year, sunday.month, sunday.day + i);
       final key = dateToKey(date);
       list.add(DailyActivity(
         date: date,
         isCompleted: state.qualifyingDates.contains(key),
-        isToday: i == 0,
+        isToday: normalizeDate(date) == today,
       ));
     }
 

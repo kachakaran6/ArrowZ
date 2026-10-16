@@ -54,7 +54,7 @@ class AudioService implements SoundService {
 
   final Ref? _ref;
 
-  static const int _pullVoiceCount = 10;
+  static const int _pullVoiceCount = 4;
   final List<_SoundVoice> _pullVoices = [];
   final List<_SoundVoice> _blockVoices = [];
   _SoundVoice? _completeVoice;
@@ -62,7 +62,6 @@ class AudioService implements SoundService {
 
   bool _initialized = false;
   bool _soundEnabled = true;
-  bool _isRecreating = false;
 
   void updateSoundEnabled(bool enabled) {
     _soundEnabled = enabled;
@@ -97,7 +96,7 @@ class AudioService implements SoundService {
       }
 
       _blockVoices.clear();
-      for (var i = 0; i < 3; i++) {
+      for (var i = 0; i < 2; i++) {
         _blockVoices.add(_createVoice(AssetSource('audio/block.ogg')));
       }
 
@@ -178,7 +177,7 @@ class AudioService implements SoundService {
     required double volume,
     required int safetyDurationMs,
   }) {
-    if (voices.isEmpty || _isRecreating) return;
+    if (voices.isEmpty) return;
 
     // 1. Look for an idle voice
     _SoundVoice? target;
@@ -222,68 +221,24 @@ class AudioService implements SoundService {
 
     unawaited(() async {
       try {
-        await voice.player.stop();
-        await voice.player.seek(Duration.zero);
         await voice.player.play(voice.source, volume: volume);
         Diagnostics.instance.soundStarted++;
       } catch (e) {
         Diagnostics.instance.soundFailed++;
         Diagnostics.instance.soundLastError = e.toString();
         debugLog('Sound playback error: $e');
-        _handlePlayError();
+        voice.isPlaying = false;
+        voice.safetyTimer?.cancel();
+        _updateInFlightCount();
       }
     }());
-  }
-
-  void _handlePlayError() {
-    if (_isRecreating) return;
-    _isRecreating = true;
-    unawaited(() async {
-      try {
-        await _recreateEngine();
-      } finally {
-        _isRecreating = false;
-      }
-    }());
-  }
-
-  Future<void> _recreateEngine() async {
-    debugLog('Recreating AudioService engine...');
-    for (final v in _pullVoices) {
-      v.dispose();
-    }
-    _pullVoices.clear();
-    for (final v in _blockVoices) {
-      v.dispose();
-    }
-    _blockVoices.clear();
-    _completeVoice?.dispose();
-    _uiVoice?.dispose();
-    _initialized = false;
-    await init();
   }
 
   @override
   void onResume() {
     if (!_initialized) {
       unawaited(init());
-      return;
     }
-    unawaited(() async {
-      try {
-        // Silent test play to verify device audio output channel is alive
-        if (_pullVoices.isNotEmpty) {
-          final testVoice = _pullVoices.first;
-          await testVoice.player.stop();
-          await testVoice.player.seek(Duration.zero);
-          await testVoice.player.play(testVoice.source, volume: 0.0);
-        }
-      } catch (e) {
-        Diagnostics.instance.soundLastError = e.toString();
-        debugLog('Silent test play on resume failed, recreating: $e');
-        await _recreateEngine();
-      }
-    }());
   }
 
   // Backward-compatible API helpers

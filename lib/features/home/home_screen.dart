@@ -228,10 +228,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                   ),
                                 ],
 
-                                // ── 4. Primary Play Action Button (MIDDLE) ──
-                                _buildPlayButton(
+                                // ── 4. Chapter & Level Progression Box (Level Number) ──
+                                _buildProgressionCard(
                                   tokens: tokens,
                                   currentLevel: currentLevel,
+                                  chapterNumber: chapterNumber,
+                                  levelInChapter: levelInChapter,
+                                  starsEarned: starsEarned,
                                   isCompact: isCompact,
                                 ),
 
@@ -241,13 +244,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                       : Primitives.space16,
                                 ),
 
-                                // ── 5. Chapter & Level Progression Card ─────
-                                _buildProgressionCard(
+                                // ── 5. Primary Play Action Button (BELOW level number) ──
+                                _buildPlayButton(
                                   tokens: tokens,
                                   currentLevel: currentLevel,
-                                  chapterNumber: chapterNumber,
-                                  levelInChapter: levelInChapter,
-                                  starsEarned: starsEarned,
                                   isCompact: isCompact,
                                 ),
 
@@ -496,12 +496,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             ),
             const SizedBox(height: 4.0),
             Text(
-              'Thread Puzzle',
+              'Escape Puzzle',
               textAlign: TextAlign.center,
               style: tokens.typography.caption.copyWith(
                 color: tokens.inkMuted,
                 letterSpacing: 2.4,
-                fontSize: 11.5,
+                fontSize: 12.0,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -512,7 +512,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Progression Card
+  // Progression Card (Level Number Box - Display Only)
   // ──────────────────────────────────────────────────────────────────────────
   Widget _buildProgressionCard({
     required AppTokens tokens,
@@ -537,132 +537,119 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       child: FadeTransition(
         opacity: slideAnimation,
         child: Semantics(
-          button: true,
           label: 'Current level: $currentLevel in chapter $chapterNumber',
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _onBrowseLevels,
-              borderRadius: BorderRadius.circular(18.0),
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isCompact ? 16.0 : 20.0,
-                  vertical: isCompact ? 12.0 : 16.0,
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: isCompact ? 20.0 : 24.0,
+              vertical: isCompact ? 16.0 : 20.0,
+            ),
+            decoration: BoxDecoration(
+              color: tokens.surface,
+              borderRadius: BorderRadius.circular(20.0),
+              border: Border.all(
+                color: tokens.threadFaint,
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: tokens.ink.withValues(alpha: 0.04),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
                 ),
-                decoration: BoxDecoration(
-                  color: tokens.surface,
-                  borderRadius: BorderRadius.circular(18.0),
-                  border: Border.all(
-                    color: tokens.threadFaint,
-                    width: 1.0,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: tokens.ink.withValues(alpha: 0.04),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Chapter header & stars / count
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'CHAPTER $chapterNumber',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tokens.typography.caption.copyWith(
+                          color: tokens.accent,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.5,
+                          fontSize: 11.0,
+                        ),
+                      ),
                     ),
+                    const SizedBox(width: 8.0),
+                    if (starsEarned > 0)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(3, (i) {
+                          final filled = i < starsEarned;
+                          return Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 1.5),
+                            child: Icon(
+                              filled
+                                  ? Icons.star_rounded
+                                  : Icons.star_border_rounded,
+                              size: 16.0,
+                              color: filled
+                                  ? const Color(0xFFE5A93C)
+                                  : tokens.threadFaint,
+                            ),
+                          );
+                        }),
+                      )
+                    else
+                      Text(
+                        '$levelInChapter of 20',
+                        style: tokens.typography.caption.copyWith(
+                          color: tokens.inkMuted,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11.5,
+                        ),
+                      ),
                   ],
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+
+                const SizedBox(height: 8.0),
+
+                // Prominent Level Number Box Text
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Chapter header & stars / count
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'CHAPTER $chapterNumber',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: tokens.typography.caption.copyWith(
-                              color: tokens.accent,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.5,
-                              fontSize: 10.5,
-                            ),
-                          ),
+                    Flexible(
+                      child: Text(
+                        'Level $currentLevel',
+                        key: const Key('lobby_level_number'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tokens.typography.heading.copyWith(
+                          color: tokens.ink,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
+                          fontSize: isCompact ? 24.0 : 26.0,
                         ),
-                        const SizedBox(width: 8.0),
-                        if (starsEarned > 0)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: List.generate(3, (i) {
-                              final filled = i < starsEarned;
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 1.5),
-                                child: Icon(
-                                  filled
-                                      ? Icons.star_rounded
-                                      : Icons.star_border_rounded,
-                                  size: 15.0,
-                                  color: filled
-                                      ? const Color(0xFFE5A93C)
-                                      : tokens.threadFaint,
-                                ),
-                              );
-                            }),
-                          )
-                        else
-                          Text(
-                            '$levelInChapter of 20',
-                            style: tokens.typography.caption.copyWith(
-                              color: tokens.inkMuted,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 11.0,
-                            ),
-                          ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 6.0),
-
-                    // Level Number & Chevron Indicator
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'Level $currentLevel',
-                            key: const Key('lobby_level_number'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: tokens.typography.heading.copyWith(
-                              color: tokens.ink,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.2,
-                              fontSize: isCompact ? 20.0 : 22.0,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: tokens.inkMuted,
-                          size: 20.0,
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 10.0),
-
-                    // Chapter Progress Indicator
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4.0),
-                      child: LinearProgressIndicator(
-                        value: chapterProgress,
-                        backgroundColor:
-                            tokens.threadFaint.withValues(alpha: 0.6),
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(tokens.accent),
-                        minHeight: 4.0,
                       ),
                     ),
                   ],
                 ),
-              ),
+
+                const SizedBox(height: 12.0),
+
+                // Chapter Progress Indicator
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4.0),
+                  child: LinearProgressIndicator(
+                    value: chapterProgress,
+                    backgroundColor:
+                        tokens.threadFaint.withValues(alpha: 0.6),
+                    valueColor:
+                        AlwaysStoppedAnimation<Color>(tokens.accent),
+                    minHeight: 4.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

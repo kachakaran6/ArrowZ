@@ -357,10 +357,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
     // Preload next level in background while Complete sheet is showing
     unawaited(ref.read(levelRepositoryProvider).loadLevel(state.level.id + 1));
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isDismissible: false,
-      enableDrag: true,
+      barrierDismissible: false,
       builder: (ctx) => CompleteSheet(
         levelId: state.level.id,
         chapterName: chName,
@@ -369,15 +368,23 @@ class _GameScreenState extends ConsumerState<GameScreen>
         threadsCleared: state.level.threads.length,
         mistakes: state.mistakes,
         elapsedSeconds: _elapsedSeconds,
+        onReplay: () {
+          _sheetOpen = false;
+          _animator.finalizeAllRunningAnimations();
+          final dpr = MediaQuery.devicePixelRatioOf(context);
+          final cellSize = ComponentTokens.computeLatticeCellSize(
+            screenWidth: MediaQuery.sizeOf(context).width,
+            boardRegionHeight: MediaQuery.sizeOf(context).height * 0.65,
+            rows: _level!.rows,
+            cols: _level!.cols,
+            devicePixelRatio: dpr,
+          );
+          _controller?.restartLevel(cellSize);
+        },
         onNextLevel: () {
           _sheetOpen = false;
           _animator.finalizeAllRunningAnimations();
           context.pushReplacement(Routes.play(state.level.id + 1));
-        },
-        onLevels: () {
-          _sheetOpen = false;
-          _animator.finalizeAllRunningAnimations();
-          context.go(Routes.levels);
         },
       ),
     ).then((_) => _sheetOpen = false);
