@@ -2,7 +2,7 @@ name: arrowtapout
 description: "ArrowZ — Calm, offline thread-puzzle game."
 publish_to: 'none'
 
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: ^3.5.0
