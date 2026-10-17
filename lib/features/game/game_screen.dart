@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:arrowtapout/core/qa_config.dart';
 import 'package:arrowtapout/data/chapter_data.dart';
@@ -29,8 +30,10 @@ import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/notification_service.dart';
 import 'package:arrowtapout/router/routes.dart';
+import 'package:confetti/confetti.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -56,6 +59,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
   bool _sheetOpen = false;
   bool _showDiagnostics = false;
 
+  late final ConfettiController _confettiController;
+
   final Stopwatch _stopwatch = Stopwatch();
   final TransformationController _boardTransformController =
       TransformationController();
@@ -72,6 +77,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _confettiController =
+        ConfettiController(duration: const Duration(seconds: 4));
     _animator = BoardAnimator(vsync: this);
     _stopwatch.start();
     _tickerTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -166,6 +173,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
     _stopwatch.stop();
     WidgetsBinding.instance.removeObserver(this);
     _animator.finalizeAllRunningAnimations();
+    _confettiController.dispose();
     _boardTransformController.dispose();
     _controller?.dispose();
     _animator.dispose();
@@ -367,52 +375,158 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
     final qaState = ref.read(qaSessionProvider);
     final isQa = QaConfig.isQaAvailable && qaState.isActive;
+    final reduceMotion = ref.read(settingsProvider).reduceMotion ||
+        (isQa && qaState.suppressAnimations);
 
     // Preload next level in background while Complete sheet is showing
     unawaited(ref.read(levelRepositoryProvider).loadLevel(state.level.id + 1));
 
+    if (!reduceMotion) {
+      _confettiController.play();
+      // Celebratory rhythmic haptics matching arrow-escape
+      unawaited(Future.forEach(List.generate(6, (i) => i * 150), (delay) async {
+        await Future.delayed(Duration(milliseconds: delay == 0 ? 0 : 150));
+        if (mounted && _sheetOpen) {
+          await HapticFeedback.lightImpact();
+        }
+      }));
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => CompleteSheet(
-        levelId: state.level.id,
-        chapterName: chName,
-        isChapterFinale: isFinale,
-        stars: state.stars,
-        threadsCleared: state.level.threads.length,
-        mistakes: state.mistakes,
-        elapsedSeconds: _elapsedSeconds,
-        onReplay: () {
-          if (_isNavigating) return;
-          ref.read(hapticsServiceProvider).selection();
-          _boardTransformController.value = Matrix4.identity();
-          _sheetOpen = false;
-          _animator.finalizeAllRunningAnimations();
-          final dpr = MediaQuery.devicePixelRatioOf(context);
-          final cellSize = ComponentTokens.computeLatticeCellSize(
-            screenWidth: MediaQuery.sizeOf(context).width,
-            boardRegionHeight: MediaQuery.sizeOf(context).height * 0.65,
-            rows: _level!.rows,
-            cols: _level!.cols,
-            devicePixelRatio: dpr,
-          );
-          _controller?.restartLevel(cellSize);
-        },
-        onNextLevel: () {
-          if (_isNavigating) return;
-          _isNavigating = true;
-          ref.read(hapticsServiceProvider).selection();
-          _sheetOpen = false;
-          _animator.finalizeAllRunningAnimations();
-          if (isQa) {
-            ref
-                .read(qaSessionProvider.notifier)
-                .prepareNextLevel(state.level.id + 1);
-          }
-          context.pushReplacement(Routes.play(state.level.id + 1));
-        },
+      builder: (ctx) => Stack(
+        alignment: Alignment.center,
+        children: [
+          CompleteSheet(
+            levelId: state.level.id,
+            chapterName: chName,
+            isChapterFinale: isFinale,
+            stars: state.stars,
+            threadsCleared: state.level.threads.length,
+            mistakes: state.mistakes,
+            elapsedSeconds: _elapsedSeconds,
+            onReplay: () {
+              if (_isNavigating) return;
+              _confettiController.stop();
+              ref.read(hapticsServiceProvider).selection();
+              _boardTransformController.value = Matrix4.identity();
+              _sheetOpen = false;
+              _animator.finalizeAllRunningAnimations();
+              final dpr = MediaQuery.devicePixelRatioOf(context);
+              final cellSize = ComponentTokens.computeLatticeCellSize(
+                screenWidth: MediaQuery.sizeOf(context).width,
+                boardRegionHeight: MediaQuery.sizeOf(context).height * 0.65,
+                rows: _level!.rows,
+                cols: _level!.cols,
+                devicePixelRatio: dpr,
+              );
+              _controller?.restartLevel(cellSize);
+            },
+            onNextLevel: () {
+              if (_isNavigating) return;
+              _isNavigating = true;
+              _confettiController.stop();
+              ref.read(hapticsServiceProvider).selection();
+              _sheetOpen = false;
+              _animator.finalizeAllRunningAnimations();
+              if (isQa) {
+                ref
+                    .read(qaSessionProvider.notifier)
+                    .prepareNextLevel(state.level.id + 1);
+              }
+              context.pushReplacement(Routes.play(state.level.id + 1));
+            },
+          ),
+          if (!reduceMotion) ...[
+            // Top Center Explosive Confetti (Subtle)
+            IgnorePointer(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConfettiWidget(
+                  confettiController: _confettiController,
+                  blastDirectionality: BlastDirectionality.explosive,
+                  emissionFrequency: 0.08,
+                  numberOfParticles: 10,
+                  maxBlastForce: 70,
+                  minBlastForce: 35,
+                  gravity: 0.18,
+                  shouldLoop: false,
+                  colors: const [
+                    Colors.red,
+                    Colors.blue,
+                    Colors.green,
+                    Colors.yellow,
+                    Colors.pink,
+                    Colors.purple,
+                    Colors.orange,
+                    Colors.teal,
+                    Colors.cyan,
+                  ],
+                ),
+              ),
+            ),
+            // Bottom Left Confetti (Subtle)
+            IgnorePointer(
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: ConfettiWidget(
+                  confettiController: _confettiController,
+                  blastDirection: -math.pi / 4,
+                  emissionFrequency: 0.04,
+                  numberOfParticles: 4,
+                  maxBlastForce: 80,
+                  minBlastForce: 40,
+                  gravity: 0.15,
+                  shouldLoop: false,
+                  colors: const [
+                    Colors.red,
+                    Colors.blue,
+                    Colors.green,
+                    Colors.yellow,
+                    Colors.pink,
+                    Colors.purple,
+                    Colors.orange,
+                    Colors.teal,
+                    Colors.cyan,
+                  ],
+                ),
+              ),
+            ),
+            // Bottom Right Confetti (Subtle)
+            IgnorePointer(
+              child: Align(
+                alignment: Alignment.bottomRight,
+                child: ConfettiWidget(
+                  confettiController: _confettiController,
+                  blastDirection: -3 * math.pi / 4,
+                  emissionFrequency: 0.04,
+                  numberOfParticles: 4,
+                  maxBlastForce: 80,
+                  minBlastForce: 40,
+                  gravity: 0.15,
+                  shouldLoop: false,
+                  colors: const [
+                    Colors.red,
+                    Colors.blue,
+                    Colors.green,
+                    Colors.yellow,
+                    Colors.pink,
+                    Colors.purple,
+                    Colors.orange,
+                    Colors.teal,
+                    Colors.cyan,
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
-    ).then((_) => _sheetOpen = false);
+    ).then((_) {
+      _sheetOpen = false;
+      _confettiController.stop();
+    });
   }
 
   void _showFailedSheet(GameState state) {
