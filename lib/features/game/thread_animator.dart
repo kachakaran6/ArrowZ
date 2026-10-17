@@ -5,6 +5,7 @@ import 'package:arrowtapout/design/primitives.dart';
 import 'package:arrowtapout/diagnostics/diagnostics.dart';
 import 'package:arrowtapout/engine/arrow_extraction_engine.dart';
 import 'package:arrowtapout/engine/board_state.dart';
+import 'package:arrowtapout/engine/deflector.dart';
 import 'package:arrowtapout/engine/dir.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/engine/thread.dart';
@@ -22,11 +23,13 @@ class ThreadGeometry {
     required this.cellSize,
     required this.rows,
     required this.cols,
+    this.deflectors = const [],
   }) : track = ExtractionTrack(
           thread: thread,
           cellSize: cellSize,
           rows: rows,
           cols: cols,
+          deflectors: deflectors,
         ) {
     _buildBasePath();
   }
@@ -35,6 +38,7 @@ class ThreadGeometry {
   final double cellSize;
   final int rows;
   final int cols;
+  final List<Deflector> deflectors;
   final ExtractionTrack track;
 
   late final ui.Path basePath;
@@ -295,6 +299,7 @@ class BoardAnimator extends ChangeNotifier {
         cellSize: cellSize,
         rows: level.rows,
         cols: level.cols,
+        deflectors: level.deflectors,
       );
     }
   }
@@ -316,6 +321,7 @@ class BoardAnimator extends ChangeNotifier {
         cellSize: newCellSize,
         rows: level.rows,
         cols: level.cols,
+        deflectors: level.deflectors,
       );
       geometries[t.id] = newGeom;
 

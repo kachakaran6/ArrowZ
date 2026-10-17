@@ -5,6 +5,7 @@ import 'package:arrowtapout/data/arrow_skin.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/component_tokens.dart';
 import 'package:arrowtapout/engine/cell.dart';
+import 'package:arrowtapout/engine/dir.dart';
 import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/thread_animator.dart';
 import 'package:flutter/material.dart';
@@ -148,26 +149,102 @@ class BoardPainter extends CustomPainter {
       ..color = tokens.gridDot
       ..isAntiAlias = true;
 
+    final deflectorMap = {for (final d in level.deflectors) d.cell: d};
+
+    void drawNode(Cell cell) {
+      final center = Offset(cell.c * cellSize, cell.r * cellSize);
+      final deflector = deflectorMap[cell];
+      if (deflector != null) {
+        _drawDeflectorNode(canvas, center, deflector.dir, dotRadius);
+      } else {
+        canvas.drawCircle(center, dotRadius, dotPaint);
+      }
+    }
+
     if (level.shape == 'rect' || level.shape == 'square') {
       for (var r = 0; r < level.rows; r++) {
         for (var c = 0; c < level.cols; c++) {
-          canvas.drawCircle(
-            Offset(c * cellSize, r * cellSize),
-            dotRadius,
-            dotPaint,
-          );
+          drawNode(Cell(r, c));
         }
       }
     } else {
-      for (final cell in _maskAdjacentNodes) {
-        canvas.drawCircle(
-          Offset(cell.c * cellSize, cell.r * cellSize),
-          dotRadius,
-          dotPaint,
-        );
+      final allNodes = Set<Cell>.of(_maskAdjacentNodes);
+      for (final d in level.deflectors) {
+        allNodes.add(d.cell);
+      }
+      for (final cell in allNodes) {
+        drawNode(cell);
       }
     }
     _latticePicture = recorder.endRecording();
+  }
+
+  void _drawDeflectorNode(
+    Canvas canvas,
+    Offset center,
+    Dir dir,
+    double dotRadius,
+  ) {
+    final radius = math.max(dotRadius * 3.2, cellSize * 0.28);
+
+    // 1. Deflector outer glow/badge
+    final bgPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = tokens.accent.withValues(alpha: 0.18)
+      ..isAntiAlias = true;
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // 2. Crisp accent ring border
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1.5, cellSize * 0.045)
+      ..color = tokens.accent.withValues(alpha: 0.85)
+      ..isAntiAlias = true;
+    canvas.drawCircle(center, radius, ringPaint);
+
+    // 3. Directional indicator chevron/arrow in center pointing in dir
+    final angleRad = switch (dir) {
+      Dir.right => 0.0,
+      Dir.down => math.pi / 2.0,
+      Dir.left => math.pi,
+      Dir.up => -math.pi / 2.0,
+    };
+
+    final chevronPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1.8, cellSize * 0.05)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = tokens.accent
+      ..isAntiAlias = true;
+
+    final cosA = math.cos(angleRad);
+    final sinA = math.sin(angleRad);
+    final fx = cosA;
+    final fy = sinA;
+    final px = -sinA;
+    final py = cosA;
+
+    final tipDist = radius * 0.55;
+    final baseDist = radius * 0.25;
+    final wingSpan = radius * 0.50;
+
+    final tip = Offset(center.dx + fx * tipDist, center.dy + fy * tipDist);
+    final wing1 = Offset(
+      center.dx - fx * baseDist + px * wingSpan,
+      center.dy - fy * baseDist + py * wingSpan,
+    );
+    final wing2 = Offset(
+      center.dx - fx * baseDist - px * wingSpan,
+      center.dy - fy * baseDist - py * wingSpan,
+    );
+
+    final path = ui.Path()
+      ..moveTo(wing1.dx, wing1.dy)
+      ..lineTo(tip.dx, tip.dy)
+      ..lineTo(wing2.dx, wing2.dy);
+
+    canvas.drawPath(path, chevronPaint);
   }
 
   void _renderChevronArrowhead({
@@ -277,7 +354,8 @@ class BoardPainter extends CustomPainter {
 
     _arrowPath.reset();
     _arrowPath.moveTo(tip.dx, tip.dy);
-    _arrowPath.quadraticBezierTo(midLeft.dx, midLeft.dy, leftWing.dx, leftWing.dy);
+    _arrowPath.quadraticBezierTo(
+        midLeft.dx, midLeft.dy, leftWing.dx, leftWing.dy);
     _arrowPath.lineTo(headPoint.dx, headPoint.dy);
     _arrowPath.lineTo(rightWing.dx, rightWing.dy);
     _arrowPath.quadraticBezierTo(midRight.dx, midRight.dy, tip.dx, tip.dy);
@@ -433,7 +511,18 @@ class BoardPainter extends CustomPainter {
           emoji: '🚀',
         );
       case ArrowSkin.animals:
-        const animals = ['🦊', '🐱', '🐶', '🐰', '🐼', '🐯', '🦁', '🐸', '🐵', '🦉'];
+        const animals = [
+          '🦊',
+          '🐱',
+          '🐶',
+          '🐰',
+          '🐼',
+          '🐯',
+          '🦁',
+          '🐸',
+          '🐵',
+          '🦉'
+        ];
         final emoji = animals[threadId.abs() % animals.length];
         _renderEmojiArrowhead(
           canvas: canvas,
@@ -443,7 +532,18 @@ class BoardPainter extends CustomPainter {
           emoji: emoji,
         );
       case ArrowSkin.emojis:
-        const emojis = ['⚡', '⭐', '🎯', '🔥', '💎', '🌟', '🍀', '🪐', '🌈', '🔮'];
+        const emojis = [
+          '⚡',
+          '⭐',
+          '🎯',
+          '🔥',
+          '💎',
+          '🌟',
+          '🍀',
+          '🪐',
+          '🌈',
+          '🔮'
+        ];
         final emoji = emojis[threadId.abs() % emojis.length];
         _renderEmojiArrowhead(
           canvas: canvas,
@@ -454,8 +554,24 @@ class BoardPainter extends CustomPainter {
         );
       case ArrowSkin.random:
         const fun = [
-          '🚀', '⚡', '⭐', '🎯', '🔥', '💎', '🌟', '🍀', '🦊', '🐱', '🐶',
-          '🐰', '🪐', '🌈', '🔮', '🎈', '🍕', '⚽'
+          '🚀',
+          '⚡',
+          '⭐',
+          '🎯',
+          '🔥',
+          '💎',
+          '🌟',
+          '🍀',
+          '🦊',
+          '🐱',
+          '🐶',
+          '🐰',
+          '🪐',
+          '🌈',
+          '🔮',
+          '🎈',
+          '🍕',
+          '⚽'
         ];
         final emoji = fun[threadId.abs() % fun.length];
         _renderEmojiArrowhead(

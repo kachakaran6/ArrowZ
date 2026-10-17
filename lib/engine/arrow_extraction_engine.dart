@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:arrowtapout/engine/board_state.dart';
+import 'package:arrowtapout/engine/deflector.dart';
 import 'package:arrowtapout/engine/dir.dart';
 import 'package:arrowtapout/engine/thread.dart';
 
@@ -66,6 +68,7 @@ class ExtractionTrack {
     required this.cellSize,
     required this.rows,
     required this.cols,
+    this.deflectors = const [],
   }) {
     _buildTrack();
   }
@@ -74,6 +77,7 @@ class ExtractionTrack {
   final double cellSize;
   final int rows;
   final int cols;
+  final List<Deflector> deflectors;
 
   late final ui.Path fullTrackPath;
   late final ui.PathMetric trackMetric;
@@ -88,12 +92,13 @@ class ExtractionTrack {
     threadLengthPx = (thread.cells.length - 1) * cellSize;
 
     final head = thread.head;
-    rayLengthPx = switch (thread.dir) {
-      Dir.up => head.r * cellSize,
-      Dir.down => (rows - 1 - head.r) * cellSize,
-      Dir.left => head.c * cellSize,
-      Dir.right => (cols - 1 - head.c) * cellSize,
-    };
+    final defMap = deflectors.isNotEmpty
+        ? {for (final d in deflectors) d.cell: d.dir}
+        : null;
+    final rayCells =
+        BoardState.ray(thread, rows, cols, defMap).toList(growable: false);
+
+    rayLengthPx = rayCells.length * cellSize;
 
     // Spec 13: D = ray + L + 0.6*cell, A = 0.16*cell
     final extraRun = 0.6 * cellSize + threadLengthPx;
@@ -102,10 +107,11 @@ class ExtractionTrack {
     stubLengthPx = 0.3 * cellSize;
 
     // Spec 13: T = clamp(300ms + 9ms * (D / cell), 340ms, 820ms)
-    durationMs = (300.0 + 9.0 * (totalDistanceD / cellSize)).clamp(340.0, 820.0);
+    durationMs =
+        (300.0 + 9.0 * (totalDistanceD / cellSize)).clamp(340.0, 820.0);
 
     // Build the continuous polyline track:
-    // Virtual backward stub (0.3*cell) -> tail -> vertices -> head -> grid edge -> extra run
+    // Virtual backward stub (0.3*cell) -> tail -> vertices -> head -> ray -> extra run
     fullTrackPath = ui.Path();
 
     final c0 = thread.cells[0];
@@ -124,22 +130,24 @@ class ExtractionTrack {
       fullTrackPath.lineTo(c.c * cellSize, c.r * cellSize);
     }
 
-    // Edge node coordinate along exit ray
-    final edgeNodeC = switch (thread.dir) {
-      Dir.left => 0.0,
-      Dir.right => (cols - 1).toDouble(),
-      _ => head.c.toDouble(),
-    };
-    final edgeNodeR = switch (thread.dir) {
-      Dir.up => 0.0,
-      Dir.down => (rows - 1).toDouble(),
-      _ => head.r.toDouble(),
-    };
-    fullTrackPath.lineTo(edgeNodeC * cellSize, edgeNodeR * cellSize);
+    var lastC = head.c.toDouble();
+    var lastR = head.r.toDouble();
+    var lastDir = thread.dir;
 
-    // Final off-screen point
-    final finalX = edgeNodeC * cellSize + thread.dir.dx * extraRun;
-    final finalY = edgeNodeR * cellSize + thread.dir.dy * extraRun;
+    if (rayCells.isNotEmpty) {
+      for (final cell in rayCells) {
+        fullTrackPath.lineTo(cell.c * cellSize, cell.r * cellSize);
+        if (defMap != null && defMap.containsKey(cell)) {
+          lastDir = defMap[cell]!;
+        }
+        lastC = cell.c.toDouble();
+        lastR = cell.r.toDouble();
+      }
+    }
+
+    // Final off-screen point along the redirected exit vector
+    final finalX = lastC * cellSize + lastDir.dx * extraRun;
+    final finalY = lastR * cellSize + lastDir.dy * extraRun;
     fullTrackPath.lineTo(finalX, finalY);
 
     final metrics = fullTrackPath.computeMetrics().toList();
