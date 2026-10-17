@@ -255,7 +255,8 @@ class Diagnostics extends ChangeNotifier {
     sb.writeln('Tap Accepted: $tapAcceptedCount');
     sb.writeln('Tap Rejected: $tapRejectedCount');
     final totalTaps = tapAcceptedCount + tapRejectedCount;
-    final acceptRate = totalTaps == 0 ? 100.0 : (tapAcceptedCount / totalTaps) * 100.0;
+    final acceptRate =
+        totalTaps == 0 ? 100.0 : (tapAcceptedCount / totalTaps) * 100.0;
     sb.writeln('Acceptance Rate: ${acceptRate.toStringAsFixed(1)}%');
     sb.writeln('Rejection Reasons:');
     for (final entry in rejectedReasons.entries) {
@@ -267,7 +268,8 @@ class Diagnostics extends ChangeNotifier {
     sb.writeln('--- Animation Health ---');
     sb.writeln('Active Exiting: $exitingCount');
     sb.writeln('Active Bouncing: $bouncingCount');
-    sb.writeln('Oldest Animation Age: ${oldestRunningAnimationAgeMs.toStringAsFixed(1)} ms');
+    sb.writeln(
+        'Oldest Animation Age: ${oldestRunningAnimationAgeMs.toStringAsFixed(1)} ms');
     sb.writeln('Stuck Detections: $stuckCount');
     if (stuckErrors.isNotEmpty) {
       sb.writeln('Recent Stuck Errors:');
@@ -290,7 +292,8 @@ class Diagnostics extends ChangeNotifier {
     sb.writeln('GameScreen rebuilds: $screenRebuildsLast100');
     sb.writeln('BoardWidget rebuilds: $boardRebuildsLast100');
     sb.writeln('HeaderCounter rebuilds: $headerRebuildsLast100');
-    sb.writeln('Lifetime totals: Screen=$totalScreenRebuilds, Board=$totalBoardRebuilds, Header=$totalHeaderRebuilds');
+    sb.writeln(
+        'Lifetime totals: Screen=$totalScreenRebuilds, Board=$totalBoardRebuilds, Header=$totalHeaderRebuilds');
     sb.writeln('================================');
     return sb.toString();
   }

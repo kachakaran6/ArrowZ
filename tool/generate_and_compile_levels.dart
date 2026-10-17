@@ -41,8 +41,8 @@ void main(List<String> args) async {
     for (var i = 1; i <= 500; i++) {
       final cacheFile = File('assets/levels_cache/level_$i.json');
       if (cacheFile.existsSync()) {
-        final level =
-            Level.fromJson(jsonDecode(cacheFile.readAsStringSync()) as Map<String, dynamic>);
+        final level = Level.fromJson(
+            jsonDecode(cacheFile.readAsStringSync()) as Map<String, dynamic>);
         levels.add(level);
       } else {
         log('WARNING: Missing cache file for Level $i');
@@ -105,7 +105,8 @@ void main(List<String> args) async {
       if (chLevels.isEmpty) continue;
 
       final chNumStr = ch.toString().padLeft(2, '0');
-      final chName = ch <= chapterNames.length ? chapterNames[ch - 1] : 'Chapter $ch';
+      final chName =
+          ch <= chapterNames.length ? chapterNames[ch - 1] : 'Chapter $ch';
       final chJson = {
         'v': 1,
         'chapter': ch,
@@ -143,7 +144,8 @@ void main(List<String> args) async {
     if (cacheFile.existsSync()) {
       try {
         final jsonStr = cacheFile.readAsStringSync();
-        final level = Level.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
+        final level =
+            Level.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
         final errors = _verifyLevel(level);
         if (errors.isEmpty) {
           validLevel = level;

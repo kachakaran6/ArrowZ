@@ -41,7 +41,8 @@ void main() {
           if (t1.dir != t2.dir) continue;
 
           // Check if heads or stroke segments are 1 cell apart
-          final headDist = (t1.head.r - t2.head.r).abs() + (t1.head.c - t2.head.c).abs();
+          final headDist =
+              (t1.head.r - t2.head.r).abs() + (t1.head.c - t2.head.c).abs();
           if (headDist == 1) {
             final p1 = Offset(t1.head.c * cellSize, t1.head.r * cellSize);
             final p2 = Offset(t2.head.c * cellSize, t2.head.r * cellSize);

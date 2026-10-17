@@ -100,7 +100,8 @@ void main() {
     final defMap = {for (final d in level.deflectors) d.cell: d.dir};
     for (final thread in level.threads) {
       final visited = <int>{};
-      for (final cell in BoardState.ray(thread, level.rows, level.cols, defMap)) {
+      for (final cell
+          in BoardState.ray(thread, level.rows, level.cols, defMap)) {
         final key = (cell.r << 16) | cell.c;
         if (!visited.add(key)) {
           levelErrors.add('Infinite deflection loop for thread #${thread.id}');
@@ -155,8 +156,10 @@ void main() {
     '  Time: ${sw.elapsedMilliseconds}ms (${(sw.elapsedMilliseconds / totalLevels).toStringAsFixed(2)}ms/level)',
   );
 
-  final totalTiered =
-      totalVeryLongArrows + totalLongArrows + totalMediumArrows + totalShortArrows;
+  final totalTiered = totalVeryLongArrows +
+      totalLongArrows +
+      totalMediumArrows +
+      totalShortArrows;
   final vlPct = totalTiered > 0
       ? (totalVeryLongArrows / totalTiered * 100).toStringAsFixed(1)
       : '0.0';

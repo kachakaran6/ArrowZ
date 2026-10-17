@@ -29,7 +29,9 @@ class FakeAudio extends AudioService {
 
 void main() {
   group('Stuck Animation Test (Step 5)', () {
-    testWidgets('irregular frame gaps (including a 2s gap) and pumpAndSettle: no record remains, ticker inactive, level completes', (tester) async {
+    testWidgets(
+        'irregular frame gaps (including a 2s gap) and pumpAndSettle: no record remains, ticker inactive, level completes',
+        (tester) async {
       final level = Level(
         id: 998,
         rows: 5,
@@ -79,7 +81,9 @@ void main() {
       container.dispose();
     });
 
-    testWidgets('app pause in the middle instantly finalizes all animations so none survive', (tester) async {
+    testWidgets(
+        'app pause in the middle instantly finalizes all animations so none survive',
+        (tester) async {
       final level = Level(
         id: 997,
         rows: 5,

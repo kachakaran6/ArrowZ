@@ -296,7 +296,8 @@ class LevelGeneratorV2 {
         if (bestPath == null && type != LevelType.tutorial) {
           if (tier == _LenTier.veryLong) {
             for (final cand in candidates.take(15)) {
-              final len = _lengthForTier(_LenTier.long, veryLongMin, veryLongMax, longMin, rng);
+              final len = _lengthForTier(
+                  _LenTier.long, veryLongMin, veryLongMax, longMin, rng);
               final path = _growPath(
                 startRow: cand.row,
                 startCol: cand.col,
@@ -314,7 +315,8 @@ class LevelGeneratorV2 {
               }
             }
           }
-          if (bestPath == null && (tier == _LenTier.veryLong || tier == _LenTier.long)) {
+          if (bestPath == null &&
+              (tier == _LenTier.veryLong || tier == _LenTier.long)) {
             for (final cand in candidates.take(15)) {
               final len = 3 + rng.nextInt(3);
               final path = _growPath(
@@ -523,23 +525,25 @@ class LevelGeneratorV2 {
     // Convert raw paths to ArrowZ Threads (cells ordered tail-to-head!)
     final threads = <Thread>[];
     for (final raw in placedRawPaths) {
-      final cells =
-          raw.path.reversed.map((p) => Cell(p[0], p[1])).toList(growable: false);
+      final cells = raw.path.reversed
+          .map((p) => Cell(p[0], p[1]))
+          .toList(growable: false);
       threads.add(Thread(raw.id, cells));
     }
 
     // ── Phase 4: Deflectors (Level >= 16) ───────────────────────────────────
     final deflectors = <Deflector>[];
     if (levelNumber >= 16) {
-      final emptyPacked = maskPacked
-          .where((cp) => !occupiedPacked.contains(cp))
-          .toSet();
+      final emptyPacked =
+          maskPacked.where((cp) => !occupiedPacked.contains(cp)).toSet();
 
       final deflectorMap = <Cell, Dir>{};
       final colorProb = _colorProbFor(levelNumber, type);
       final maxDeflectors = (gridSize ~/ 3).clamp(2, 8);
 
-      for (var i = threads.length - 1; i >= 0 && deflectorMap.length < maxDeflectors; i--) {
+      for (var i = threads.length - 1;
+          i >= 0 && deflectorMap.length < maxDeflectors;
+          i--) {
         final t = threads[i];
         var curDir = t.dir;
         var r = t.head.r + curDir.dr;
@@ -654,7 +658,8 @@ class LevelGeneratorV2 {
     }
 
     final defMap = {for (final d in deflectors) d.cell: d.dir};
-    final available = List<int>.generate(threads.length, (i) => i)..shuffle(rng);
+    final available = List<int>.generate(threads.length, (i) => i)
+      ..shuffle(rng);
     var pairsCount = 0;
 
     for (var i = 0; i < available.length && pairsCount < targetPairs; i++) {
@@ -669,7 +674,8 @@ class LevelGeneratorV2 {
         final t2 = threads[idx2];
 
         // Spatial separation
-        final dist = (t1.head.r - t2.head.r).abs() + (t1.head.c - t2.head.c).abs();
+        final dist =
+            (t1.head.r - t2.head.r).abs() + (t1.head.c - t2.head.c).abs();
         if (dist < min(gridSize * 0.25, 12)) continue;
 
         // Verify mutual exit clearance
@@ -1033,7 +1039,6 @@ class LevelGeneratorV2 {
     return true;
   }
 
-
   static Dir _turnRight(Dir d) => switch (d) {
         Dir.up => Dir.right,
         Dir.right => Dir.down,
@@ -1074,8 +1079,9 @@ class LevelGeneratorV2 {
     Random rng,
   ) {
     final pool = shapes.where((s) => !history.contains(s)).toList();
-    final chosen =
-        pool.isNotEmpty ? pool[rng.nextInt(pool.length)] : shapes[rng.nextInt(shapes.length)];
+    final chosen = pool.isNotEmpty
+        ? pool[rng.nextInt(pool.length)]
+        : shapes[rng.nextInt(shapes.length)];
     history.addLast(chosen);
     if (history.length > _shapeHistoryMaxLen) history.removeFirst();
     return chosen;

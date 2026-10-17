@@ -23,25 +23,30 @@ void main() {
       expect(p(1.0), closeTo(testD, 1e-9));
     });
 
-    test('p reaches negative anticipation dip (p(0.08) < 0 and p(0.1) < 0)', () {
+    test('p reaches negative anticipation dip (p(0.08) < 0 and p(0.1) < 0)',
+        () {
       expect(p(0.08), lessThan(0.0));
       expect(p(0.10), lessThan(0.0));
       expect(p(0.08), closeTo(-testA, testA * 0.35));
     });
 
-    test('p is non-increasing on [0, 0.08] (anticipation dip towards trough)', () {
+    test('p is non-increasing on [0, 0.08] (anticipation dip towards trough)',
+        () {
       var prev = p(0.0);
       const steps = 80;
       for (var i = 1; i <= steps; i++) {
         final u = (i / steps) * 0.08;
         final curr = p(u);
         expect(curr, lessThanOrEqualTo(prev + 1e-6),
-            reason: 'p($u)=$curr should be <= previous=$prev during anticipation');
+            reason:
+                'p($u)=$curr should be <= previous=$prev during anticipation');
         prev = curr;
       }
     });
 
-    test('p is non-decreasing on [0.1, 1.0] (smooth acceleration out of lattice)', () {
+    test(
+        'p is non-decreasing on [0.1, 1.0] (smooth acceleration out of lattice)',
+        () {
       var prev = p(0.10);
       const steps = 900;
       for (var i = 1; i <= steps; i++) {
@@ -53,7 +58,9 @@ void main() {
       }
     });
 
-    test('finite-difference slope has no jump larger than 5% of D between consecutive 1/240 steps', () {
+    test(
+        'finite-difference slope has no jump larger than 5% of D between consecutive 1/240 steps',
+        () {
       const dt = 1.0 / 240.0;
       const maxAllowedJump = 0.05 * testD;
 

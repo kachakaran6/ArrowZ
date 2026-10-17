@@ -2,7 +2,7 @@ import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
 import 'package:flutter/material.dart';
 
-class FailedSheet extends StatelessWidget {
+class FailedSheet extends StatefulWidget {
   const FailedSheet({
     super.key,
     required this.onRetry,
@@ -11,6 +11,31 @@ class FailedSheet extends StatelessWidget {
 
   final VoidCallback onRetry;
   final VoidCallback onLevels;
+
+  @override
+  State<FailedSheet> createState() => _FailedSheetState();
+}
+
+class _FailedSheetState extends State<FailedSheet> {
+  bool _actionTriggered = false;
+
+  void _handleRetry() {
+    if (_actionTriggered) return;
+    _actionTriggered = true;
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+    widget.onRetry();
+  }
+
+  void _handleLevels() {
+    if (_actionTriggered) return;
+    _actionTriggered = true;
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+    widget.onLevels();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,10 +74,7 @@ class FailedSheet extends StatelessWidget {
             ),
             const SizedBox(height: Primitives.space24),
             FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                onRetry();
-              },
+              onPressed: _handleRetry,
               style: FilledButton.styleFrom(
                 backgroundColor: tokens.accent,
                 foregroundColor: tokens.onAccent,
@@ -67,10 +89,7 @@ class FailedSheet extends StatelessWidget {
             ),
             const SizedBox(height: Primitives.space12),
             OutlinedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                onLevels();
-              },
+              onPressed: _handleLevels,
               style: OutlinedButton.styleFrom(
                 foregroundColor: tokens.ink,
                 side: BorderSide(color: tokens.threadFaint, width: 1.5),

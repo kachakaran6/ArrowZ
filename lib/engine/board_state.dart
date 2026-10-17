@@ -183,7 +183,7 @@ class BoardState {
     for (final otherId in active) {
       if (otherId == id) continue;
       final other = threads[otherId]!;
-      for (final rayCell in ray(other, rows, cols)) {
+      for (final rayCell in ray(other, rows, cols, deflectorMap)) {
         if (threadCells.contains(rayCell)) {
           count++;
           break;

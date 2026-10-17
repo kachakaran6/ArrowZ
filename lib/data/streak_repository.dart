@@ -306,7 +306,8 @@ class StreakRepository extends StateNotifier<StreakData> {
   List<DailyActivity> getRecentActivity([int days = 7, DateTime? testNow]) {
     final today = normalizeDate(testNow ?? now);
     final daysSinceSunday = today.weekday % 7;
-    final sunday = DateTime(today.year, today.month, today.day - daysSinceSunday);
+    final sunday =
+        DateTime(today.year, today.month, today.day - daysSinceSunday);
     final list = <DailyActivity>[];
 
     for (int i = 0; i < 7; i++) {

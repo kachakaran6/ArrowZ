@@ -34,7 +34,9 @@ void main() {
     });
 
     for (final levelId in levelsToTest) {
-      test('Level $levelId: 10 positions along every thread stroke and arrowhead resolve 100% and animation record exists', () {
+      test(
+          'Level $levelId: 10 positions along every thread stroke and arrowhead resolve 100% and animation record exists',
+          () {
         final level = loadedLevels[levelId]!;
         final hitTester = BoardHitTester(level);
         final animator = BoardAnimator(vsync: FakeTickerProvider());
@@ -72,8 +74,8 @@ void main() {
           final headPos = Offset(head.c * cellSize, head.r * cellSize);
           const armLen = 0.23 * cellSize;
           final tipProbe = headPos +
-              Offset(thread.dir.dx * armLen * 0.5,
-                  thread.dir.dy * armLen * 0.5);
+              Offset(
+                  thread.dir.dx * armLen * 0.5, thread.dir.dy * armLen * 0.5);
           totalProbes++;
           final tipHit = hitTester.hitTest(
             localPosition: tipProbe,

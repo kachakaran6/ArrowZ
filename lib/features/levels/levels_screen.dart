@@ -73,11 +73,36 @@ class _LevelsScreenState extends ConsumerState<LevelsScreen> {
     });
   }
 
+  bool _isNavigating = false;
+
+  void _onLevelTapped(int levelId, bool isLocked) {
+    if (isLocked) {
+      _onLockedTapped(levelId);
+      return;
+    }
+    if (_isNavigating) return;
+    _isNavigating = true;
+    ref.read(hapticsServiceProvider).selection();
+    context.push(Routes.play(levelId)).then((_) {
+      if (mounted) {
+        setState(() {
+          _isNavigating = false;
+        });
+      }
+    });
+  }
+
+  void _onBack() {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    ref.read(hapticsServiceProvider).selection();
+    context.go(Routes.home);
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = context.tokens;
     final progress = ref.watch(progressProvider);
-    final haptics = ref.read(hapticsServiceProvider);
 
     return Scaffold(
       backgroundColor: tokens.bg,
@@ -86,10 +111,7 @@ class _LevelsScreenState extends ConsumerState<LevelsScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: tokens.ink),
           tooltip: 'Back',
-          onPressed: () {
-            haptics.selection();
-            context.go(Routes.home);
-          },
+          onPressed: _onBack,
         ),
       ),
       body: SafeArea(
@@ -188,14 +210,7 @@ class _LevelsScreenState extends ConsumerState<LevelsScreen> {
                               isCompleted: isCompleted,
                               stars: stars,
                               isShaking: isShaking,
-                              onTap: () {
-                                if (isLocked) {
-                                  _onLockedTapped(levelId);
-                                } else {
-                                  haptics.selection();
-                                  context.push(Routes.play(levelId));
-                                }
-                              },
+                              onTap: () => _onLevelTapped(levelId, isLocked),
                             );
                           },
                         ),

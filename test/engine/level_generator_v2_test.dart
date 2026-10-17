@@ -46,7 +46,9 @@ void main() {
       expect(sol.isSolved, isTrue);
     });
 
-    test('Levels 4 to 10 strictly respect mechanic gate (no deflectors, no color pairs)', () {
+    test(
+        'Levels 4 to 10 strictly respect mechanic gate (no deflectors, no color pairs)',
+        () {
       for (var lvl = 4; lvl <= 10; lvl++) {
         final level = LevelGeneratorV2.generateLevel(lvl);
         expect(level.id, equals(lvl));
@@ -54,7 +56,8 @@ void main() {
             reason: 'Level $lvl must not contain deflectors during early gate');
         final paired = level.threads.where((t) => t.colorGroup != null);
         expect(paired, isEmpty,
-            reason: 'Level $lvl must not contain color pairs during early gate');
+            reason:
+                'Level $lvl must not contain color pairs during early gate');
 
         final val = validateLevel(level);
         expect(val.isValid, isTrue,

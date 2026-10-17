@@ -30,8 +30,8 @@ class BoardHitTester {
     );
 
     // Screen-space tolerance: max(0.5 * cell, 14 dp) converted to cell units
-    final toleranceCells = tapToleranceCells ??
-        (math.max(0.5 * cellSize, 14.0) / cellSize);
+    final toleranceCells =
+        tapToleranceCells ?? (math.max(0.5 * cellSize, 14.0) / cellSize);
 
     return _spatialIndex.findHitThread(
       tapPoint: boardPoint,

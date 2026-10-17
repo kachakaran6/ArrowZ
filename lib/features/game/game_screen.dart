@@ -57,6 +57,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
   bool _showDiagnostics = false;
 
   final Stopwatch _stopwatch = Stopwatch();
+  final TransformationController _boardTransformController =
+      TransformationController();
   Timer? _tickerTimer;
   int _elapsedSeconds = 0;
 
@@ -136,6 +138,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
       });
 
       if (mounted) {
+        _boardTransformController.value = Matrix4.identity();
         setState(() {
           _level = level;
           _controller = controller;
@@ -163,6 +166,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
     _stopwatch.stop();
     WidgetsBinding.instance.removeObserver(this);
     _animator.finalizeAllRunningAnimations();
+    _boardTransformController.dispose();
     _controller?.dispose();
     _animator.dispose();
     super.dispose();
@@ -200,6 +204,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
         cols: _level!.cols,
         devicePixelRatio: dpr,
       );
+      _boardTransformController.value = Matrix4.identity();
       _controller?.restartLevel(cellSize);
       return;
     }
@@ -275,6 +280,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                         cols: _level!.cols,
                         devicePixelRatio: dpr,
                       );
+                      _boardTransformController.value = Matrix4.identity();
                       _controller?.restartLevel(cellSize);
                     },
                     style: FilledButton.styleFrom(
@@ -377,7 +383,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
         mistakes: state.mistakes,
         elapsedSeconds: _elapsedSeconds,
         onReplay: () {
+          if (_isNavigating) return;
           ref.read(hapticsServiceProvider).selection();
+          _boardTransformController.value = Matrix4.identity();
           _sheetOpen = false;
           _animator.finalizeAllRunningAnimations();
           final dpr = MediaQuery.devicePixelRatioOf(context);
@@ -391,6 +399,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
           _controller?.restartLevel(cellSize);
         },
         onNextLevel: () {
+          if (_isNavigating) return;
+          _isNavigating = true;
           ref.read(hapticsServiceProvider).selection();
           _sheetOpen = false;
           _animator.finalizeAllRunningAnimations();
@@ -415,7 +425,9 @@ class _GameScreenState extends ConsumerState<GameScreen>
       enableDrag: true,
       builder: (ctx) => FailedSheet(
         onRetry: () {
+          if (_isNavigating) return;
           ref.read(hapticsServiceProvider).selection();
+          _boardTransformController.value = Matrix4.identity();
           _sheetOpen = false;
           final dpr = MediaQuery.devicePixelRatioOf(context);
           final cellSize = ComponentTokens.computeLatticeCellSize(
@@ -428,6 +440,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
           _controller?.restartLevel(cellSize);
         },
         onLevels: () {
+          if (_isNavigating) return;
+          _isNavigating = true;
           ref.read(hapticsServiceProvider).selection();
           _sheetOpen = false;
           context.go(Routes.levels);
@@ -698,178 +712,215 @@ class _GameScreenState extends ConsumerState<GameScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // --- 1. Header (Height 64) ---
-                SizedBox(
-                  height: 64.0,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: ComponentTokens.pagePadding,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Left: Back button + Level Title (Long-press enables DiagnosticsOverlay)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              key: const Key('game_back_button'),
-                              icon: Icon(
-                                Icons.arrow_back_rounded,
-                                color: tokens.ink,
-                                size: 24.0,
-                              ),
-                              tooltip: 'Back to Home',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: ComponentTokens.minTapTargetSize,
-                                minHeight: ComponentTokens.minTapTargetSize,
-                              ),
-                              onPressed: _handleBackToHome,
-                            ),
-                            const SizedBox(width: Primitives.space4),
-                            GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onLongPress: () {
-                                if (!kReleaseMode) {
-                                  setState(() {
-                                    _showDiagnostics = !_showDiagnostics;
-                                  });
-                                }
-                              },
-                              child: Text(
-                                'Level ${widget.levelId}',
-                                style: TextStyle(
-                                  fontFamily: Primitives.fontDisplay,
-                                  fontSize: 22.0,
-                                  fontWeight: FontWeight.w500,
-                                  color: tokens.ink,
-                                ),
-                              ),
-                            ),
-                            if (isQaSession) ...[
-                              const SizedBox(width: 8.0),
-                              Semantics(
-                                button: true,
-                                label: 'QA Testing Controls',
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(4.0),
-                                  onTap: () => _showQaSessionSheet(context),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6.0,
-                                      vertical: 2.0,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          tokens.accent.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(4.0),
-                                      border: Border.all(
-                                        color: tokens.accent,
-                                        width: 1.0,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'QA',
-                                      style: TextStyle(
-                                        fontFamily: Primitives.fontUi,
-                                        fontSize: 10.0,
-                                        fontWeight: FontWeight.w700,
-                                        color: tokens.accent,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
+                Builder(
+                  builder: (context) {
+                    final screenW = MediaQuery.sizeOf(context).width;
+                    final hPad =
+                        screenW < 380 ? 8.0 : ComponentTokens.pagePadding;
+                    return SizedBox(
+                      height: 64.0,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: hPad,
                         ),
-
-                        // Centre: Heart life indicator + live timer badge
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            ListenableBuilder(
-                              listenable: _controller!.gameStateNotifier,
-                              builder: (context, _) => HeartLifeIndicator(
-                                remainingLives:
-                                    _controller!.currentState.remainingLives,
-                                reduceMotion: reduceMotion,
-                              ),
-                            ),
-                            const SizedBox(height: 3.0),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0,
-                                vertical: 2.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: tokens.surface.withValues(alpha: 0.8),
-                                borderRadius: BorderRadius.circular(10.0),
-                                border: Border.all(
-                                  color:
-                                      tokens.threadFaint.withValues(alpha: 0.5),
-                                  width: 0.8,
-                                ),
-                              ),
+                            // Left: Back button + Level Title (Long-press enables DiagnosticsOverlay)
+                            Flexible(
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    Icons.timer_outlined,
-                                    size: 12.0,
-                                    color: tokens.inkFaint,
+                                  IconButton(
+                                    key: const Key('game_back_button'),
+                                    icon: Icon(
+                                      Icons.arrow_back_rounded,
+                                      color: tokens.ink,
+                                      size: 24.0,
+                                    ),
+                                    tooltip: 'Back to Home',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                      minWidth:
+                                          ComponentTokens.minTapTargetSize,
+                                      minHeight:
+                                          ComponentTokens.minTapTargetSize,
+                                    ),
+                                    onPressed: _handleBackToHome,
                                   ),
-                                  const SizedBox(width: 4.0),
-                                  Text(
-                                    _formatTime(_elapsedSeconds),
-                                    style: TextStyle(
-                                      fontFamily: Primitives.fontUi,
-                                      fontSize: 11.0,
-                                      fontWeight: FontWeight.w600,
-                                      color: tokens.inkMuted,
-                                      letterSpacing: 0.5,
+                                  const SizedBox(width: Primitives.space4),
+                                  Flexible(
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onLongPress: () {
+                                        if (!kReleaseMode) {
+                                          setState(() {
+                                            _showDiagnostics =
+                                                !_showDiagnostics;
+                                          });
+                                        }
+                                      },
+                                      child: Text(
+                                        'Level ${widget.levelId}',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontFamily: Primitives.fontDisplay,
+                                          fontSize: 22.0,
+                                          fontWeight: FontWeight.w500,
+                                          color: tokens.ink,
+                                        ),
+                                      ),
                                     ),
                                   ),
+                                  if (isQaSession) ...[
+                                    const SizedBox(width: 8.0),
+                                    Semantics(
+                                      button: true,
+                                      label: 'QA Testing Controls',
+                                      child: InkWell(
+                                        borderRadius:
+                                            BorderRadius.circular(4.0),
+                                        onTap: () =>
+                                            _showQaSessionSheet(context),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6.0,
+                                            vertical: 2.0,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: tokens.accent
+                                                .withValues(alpha: 0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(4.0),
+                                            border: Border.all(
+                                              color: tokens.accent,
+                                              width: 1.0,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'QA',
+                                            style: TextStyle(
+                                              fontFamily: Primitives.fontUi,
+                                              fontSize: 10.0,
+                                              fontWeight: FontWeight.w700,
+                                              color: tokens.accent,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
-                          ],
-                        ),
 
-                        // Right: Replay button + Hint button (top-right corner)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              key: const Key('game_replay_button'),
-                              icon: Icon(
-                                Icons.refresh_rounded,
-                                color: tokens.ink,
-                                size: 24.0,
+                            // Centre: Heart life indicator + live timer badge
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ListenableBuilder(
+                                      listenable:
+                                          _controller!.gameStateNotifier,
+                                      builder: (context, _) =>
+                                          HeartLifeIndicator(
+                                        remainingLives: _controller!
+                                            .currentState.remainingLives,
+                                        reduceMotion: reduceMotion,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3.0),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8.0,
+                                        vertical: 2.0,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: tokens.surface
+                                            .withValues(alpha: 0.8),
+                                        borderRadius:
+                                            BorderRadius.circular(10.0),
+                                        border: Border.all(
+                                          color: tokens.threadFaint
+                                              .withValues(alpha: 0.5),
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.timer_outlined,
+                                            size: 12.0,
+                                            color: tokens.inkFaint,
+                                          ),
+                                          const SizedBox(width: 4.0),
+                                          Text(
+                                            _formatTime(_elapsedSeconds),
+                                            style: TextStyle(
+                                              fontFamily: Primitives.fontUi,
+                                              fontSize: 11.0,
+                                              fontWeight: FontWeight.w600,
+                                              color: tokens.inkMuted,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              tooltip: 'Restart level',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: ComponentTokens.minTapTargetSize,
-                                minHeight: ComponentTokens.minTapTargetSize,
-                              ),
-                              onPressed: () {
-                                ref.read(hapticsServiceProvider).selection();
-                                _handleRestart();
-                              },
                             ),
-                            const SizedBox(width: Primitives.space4),
-                            _HintButton(
-                              key: const Key('game_hint_button'),
-                              controller: _controller!,
-                              tokens: tokens,
-                              onHintTap: _handleHintTap,
+
+                            // Right: Replay button + Hint button (top-right corner)
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      key: const Key('game_replay_button'),
+                                      icon: Icon(
+                                        Icons.refresh_rounded,
+                                        color: tokens.ink,
+                                        size: 24.0,
+                                      ),
+                                      tooltip: 'Restart level',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(
+                                        minWidth:
+                                            ComponentTokens.minTapTargetSize,
+                                        minHeight:
+                                            ComponentTokens.minTapTargetSize,
+                                      ),
+                                      onPressed: () {
+                                        ref
+                                            .read(hapticsServiceProvider)
+                                            .selection();
+                                        _handleRestart();
+                                      },
+                                    ),
+                                    const SizedBox(width: Primitives.space4),
+                                    _HintButton(
+                                      key: const Key('game_hint_button'),
+                                      controller: _controller!,
+                                      tokens: tokens,
+                                      onHintTap: _handleHintTap,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 ),
 
                 // --- 2. Level Progress Bar ---
@@ -919,6 +970,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 Expanded(
                   child: BoardView(
                     level: _level!,
+                    transformationController: _boardTransformController,
                     getActiveIds: () => _controller!.currentState.activeIds,
                     animator: _animator,
                     arrowSkin: settings.arrowSkin,
@@ -949,98 +1001,122 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 ),
 
                 // --- 5. Bottom Bar (Height 56 + Inset) ---
-                SizedBox(
-                  height: 56.0,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: ComponentTokens.pagePadding,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Remaining threads counter
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
+                Builder(
+                  builder: (context) {
+                    final screenW = MediaQuery.sizeOf(context).width;
+                    final hPad =
+                        screenW < 380 ? 8.0 : ComponentTokens.pagePadding;
+                    return SizedBox(
+                      height: 56.0,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: hPad,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 120),
-                              transitionBuilder: (child, animation) =>
-                                  FadeTransition(
-                                      opacity: animation, child: child),
-                              child: Builder(
-                                key: ValueKey(remainingThreads),
-                                builder: (context) {
-                                  Diagnostics.instance
-                                      .recordHeaderCounterRebuild();
-                                  return Text(
-                                    '$remainingThreads',
-                                    style: TextStyle(
-                                      fontFamily: Primitives.fontDisplay,
-                                      fontSize: 20.0,
-                                      height: 1.0,
-                                      fontWeight: FontWeight.w500,
-                                      color: tokens.ink,
-                                      fontFeatures: const [
-                                        FontFeature.tabularFigures()
-                                      ],
+                            // Remaining threads counter
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    AnimatedSwitcher(
+                                      duration:
+                                          const Duration(milliseconds: 120),
+                                      transitionBuilder: (child, animation) =>
+                                          FadeTransition(
+                                              opacity: animation, child: child),
+                                      child: Builder(
+                                        key: ValueKey(remainingThreads),
+                                        builder: (context) {
+                                          Diagnostics.instance
+                                              .recordHeaderCounterRebuild();
+                                          return Text(
+                                            '$remainingThreads',
+                                            style: TextStyle(
+                                              fontFamily:
+                                                  Primitives.fontDisplay,
+                                              fontSize: 20.0,
+                                              height: 1.0,
+                                              fontWeight: FontWeight.w500,
+                                              color: tokens.ink,
+                                              fontFeatures: const [
+                                                FontFeature.tabularFigures()
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
                                     ),
-                                  );
-                                },
+                                    const SizedBox(width: 6.0),
+                                    Text(
+                                      'of $totalThreads remaining',
+                                      style: TextStyle(
+                                        fontFamily: Primitives.fontUi,
+                                        fontSize: 13.0,
+                                        fontWeight: FontWeight.w500,
+                                        color: tokens.inkMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 6.0),
-                            Text(
-                              'of $totalThreads remaining',
-                              style: TextStyle(
-                                fontFamily: Primitives.fontUi,
-                                fontSize: 13.0,
-                                fontWeight: FontWeight.w500,
-                                color: tokens.inkMuted,
+
+                            // How to play (Right aligned)
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerRight,
+                                child: InkWell(
+                                  onTap: () {
+                                    ref
+                                        .read(hapticsServiceProvider)
+                                        .selection();
+                                    _openHowToPlaySheet();
+                                  },
+                                  borderRadius: BorderRadius.circular(
+                                      Primitives.radiusButton),
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      minHeight:
+                                          ComponentTokens.minTapTargetSize,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8.0),
+                                    alignment: Alignment.center,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.help_outline_rounded,
+                                          size: 20.0,
+                                          color: tokens.inkMuted,
+                                        ),
+                                        const SizedBox(width: 6.0),
+                                        Text(
+                                          'How to play',
+                                          style: TextStyle(
+                                            fontFamily: Primitives.fontUi,
+                                            fontSize: 14.0,
+                                            fontWeight: FontWeight.w600,
+                                            color: tokens.inkMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ],
                         ),
-
-                        // How to play (Right aligned)
-                        InkWell(
-                          onTap: () {
-                            ref.read(hapticsServiceProvider).selection();
-                            _openHowToPlaySheet();
-                          },
-                          borderRadius:
-                              BorderRadius.circular(Primitives.radiusButton),
-                          child: Container(
-                            constraints: const BoxConstraints(
-                              minHeight: ComponentTokens.minTapTargetSize,
-                            ),
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 8.0),
-                            alignment: Alignment.center,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.help_outline_rounded,
-                                  size: 20.0,
-                                  color: tokens.inkMuted,
-                                ),
-                                const SizedBox(width: 6.0),
-                                Text(
-                                  'How to play',
-                                  style: TextStyle(
-                                    fontFamily: Primitives.fontUi,
-                                    fontSize: 14.0,
-                                    fontWeight: FontWeight.w600,
-                                    color: tokens.inkMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

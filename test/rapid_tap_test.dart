@@ -37,11 +37,14 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Rapid Tap Test (Step 5)', () {
-    test('12 taps in 1 second on distinct free threads: all accepted, 0 dropped, all reach gone', () async {
+    test(
+        '12 taps in 1 second on distinct free threads: all accepted, 0 dropped, all reach gone',
+        () async {
       // Build level with 12 distinct free threads
       final threads = <Thread>[];
       for (var i = 0; i < 12; i++) {
-        threads.add(Thread(i + 1, [Cell(i * 2, 0), Cell(i * 2, 1)])); // all point right
+        threads.add(
+            Thread(i + 1, [Cell(i * 2, 0), Cell(i * 2, 1)])); // all point right
       }
       final level = Level(id: 999, rows: 25, cols: 5, threads: threads);
 

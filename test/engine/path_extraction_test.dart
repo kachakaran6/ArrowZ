@@ -77,8 +77,10 @@ void main() {
 
       // Spec 13 anticipation: thread pulls back gently during [0, 0.2], then advances downwards
       final dipGeom = track.sample(0.10);
-      expect(dipGeom.displacementPx, lessThan(0.0)); // Negative displacement (pull back)
-      expect(dipGeom.headPosition.dy, lessThanOrEqualTo(startGeom.headPosition.dy + 1e-6));
+      expect(dipGeom.displacementPx,
+          lessThan(0.0)); // Negative displacement (pull back)
+      expect(dipGeom.headPosition.dy,
+          lessThanOrEqualTo(startGeom.headPosition.dy + 1e-6));
 
       // After anticipation (from progress = 0.25 onward), head advances downwards monotonically
       var prevHeadY = track.sample(0.25).headPosition.dy;

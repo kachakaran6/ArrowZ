@@ -36,6 +36,25 @@ class _CompleteSheetState extends State<CompleteSheet>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  bool _actionTriggered = false;
+
+  void _handleReplay() {
+    if (_actionTriggered) return;
+    _actionTriggered = true;
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+    widget.onReplay();
+  }
+
+  void _handleNextLevel() {
+    if (_actionTriggered) return;
+    _actionTriggered = true;
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+    widget.onNextLevel();
+  }
 
   @override
   void initState() {
@@ -150,10 +169,7 @@ class _CompleteSheetState extends State<CompleteSheet>
                   // Replay button
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        widget.onReplay();
-                      },
+                      onPressed: _handleReplay,
                       icon: const Icon(Icons.replay_rounded, size: 20.0),
                       label: Text(
                         'Replay',
@@ -176,10 +192,7 @@ class _CompleteSheetState extends State<CompleteSheet>
                   // Next Level button
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        widget.onNextLevel();
-                      },
+                      onPressed: _handleNextLevel,
                       icon: const Icon(Icons.arrow_forward_rounded, size: 20.0),
                       label: Text(
                         'Next Level',

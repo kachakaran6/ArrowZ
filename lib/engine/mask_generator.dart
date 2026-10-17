@@ -240,7 +240,9 @@ class MaskGenerator {
         // Left ear triangle
         final leftEarR = r <= side * 0.30;
         final leftEarC = c >= side * 0.15 && c <= side * 0.38;
-        if (leftEarR && leftEarC && (r + (c - side * 0.25).abs() <= side * 0.30)) {
+        if (leftEarR &&
+            leftEarC &&
+            (r + (c - side * 0.25).abs() <= side * 0.30)) {
           mask.add('$r,$c');
           continue;
         }
@@ -248,7 +250,9 @@ class MaskGenerator {
         // Right ear triangle
         final rightEarR = r <= side * 0.30;
         final rightEarC = c >= side * 0.62 && c <= side * 0.85;
-        if (rightEarR && rightEarC && (r + (c - side * 0.75).abs() <= side * 0.30)) {
+        if (rightEarR &&
+            rightEarC &&
+            (r + (c - side * 0.75).abs() <= side * 0.30)) {
           mask.add('$r,$c');
           continue;
         }
@@ -302,13 +306,15 @@ class MaskGenerator {
           continue;
         }
         // Left eye circle
-        final dLeftEye = sqrt(pow(c - side * 0.26, 2) + pow(r - side * 0.24, 2));
+        final dLeftEye =
+            sqrt(pow(c - side * 0.26, 2) + pow(r - side * 0.24, 2));
         if (dLeftEye <= side * 0.16) {
           mask.add('$r,$c');
           continue;
         }
         // Right eye circle
-        final dRightEye = sqrt(pow(c - side * 0.74, 2) + pow(r - side * 0.24, 2));
+        final dRightEye =
+            sqrt(pow(c - side * 0.74, 2) + pow(r - side * 0.24, 2));
         if (dRightEye <= side * 0.16) {
           mask.add('$r,$c');
           continue;
@@ -362,9 +368,11 @@ class MaskGenerator {
           continue;
         }
         // Round panda ears
-        if (sqrt(pow(c - side * 0.20, 2) + pow(r - side * 0.20, 2)) <= side * 0.15) {
+        if (sqrt(pow(c - side * 0.20, 2) + pow(r - side * 0.20, 2)) <=
+            side * 0.15) {
           mask.add('$r,$c');
-        } else if (sqrt(pow(c - side * 0.80, 2) + pow(r - side * 0.20, 2)) <= side * 0.15) {
+        } else if (sqrt(pow(c - side * 0.80, 2) + pow(r - side * 0.20, 2)) <=
+            side * 0.15) {
           mask.add('$r,$c');
         }
       }
@@ -433,12 +441,14 @@ class MaskGenerator {
         // Upper wings
         if (r <= cy) {
           final dLeft = sqrt(pow(c - side * 0.26, 2) + pow(r - side * 0.32, 2));
-          final dRight = sqrt(pow(c - side * 0.74, 2) + pow(r - side * 0.32, 2));
+          final dRight =
+              sqrt(pow(c - side * 0.74, 2) + pow(r - side * 0.32, 2));
           if (dLeft <= side * 0.24 || dRight <= side * 0.24) mask.add('$r,$c');
         } else {
           // Lower wings
           final dLeft = sqrt(pow(c - side * 0.30, 2) + pow(r - side * 0.68, 2));
-          final dRight = sqrt(pow(c - side * 0.70, 2) + pow(r - side * 0.68, 2));
+          final dRight =
+              sqrt(pow(c - side * 0.70, 2) + pow(r - side * 0.68, 2));
           if (dLeft <= side * 0.20 || dRight <= side * 0.20) mask.add('$r,$c');
         }
       }
@@ -518,7 +528,9 @@ class MaskGenerator {
     final cx = (side - 1) / 2.0;
     for (var r = 0; r < side; r++) {
       for (var c = 0; c < side; c++) {
-        if (r >= side * 0.30 && r <= side * 0.85 && (c - cx).abs() <= side * 0.44) {
+        if (r >= side * 0.30 &&
+            r <= side * 0.85 &&
+            (c - cx).abs() <= side * 0.44) {
           // Peaks: left peak, center peak, right peak
           if (r >= side * 0.55) {
             mask.add('$r,$c');
@@ -549,10 +561,12 @@ class MaskGenerator {
           continue;
         }
         // Ring ellipse
-        final inRing =
-            pow((c - cx) / (side * 0.48), 2) + pow((r - cy) / (side * 0.12), 2) <= 1.0;
-        final insideRing =
-            pow((c - cx) / (side * 0.34), 2) + pow((r - cy) / (side * 0.08), 2) < 1.0;
+        final inRing = pow((c - cx) / (side * 0.48), 2) +
+                pow((r - cy) / (side * 0.12), 2) <=
+            1.0;
+        final insideRing = pow((c - cx) / (side * 0.34), 2) +
+                pow((r - cy) / (side * 0.08), 2) <
+            1.0;
         if (inRing && !insideRing) {
           mask.add('$r,$c');
         }

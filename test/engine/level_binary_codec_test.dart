@@ -114,8 +114,10 @@ void main() {
     });
 
     test('throws FormatException on corrupted header', () {
-      final badBytes = Uint8List.fromList([0x00, 0x01, 0x02, 0x03, 0x01, 0x00, 0x00]);
-      expect(() => LevelBinaryDecoder.fromBytes(badBytes), throwsFormatException);
+      final badBytes =
+          Uint8List.fromList([0x00, 0x01, 0x02, 0x03, 0x01, 0x00, 0x00]);
+      expect(
+          () => LevelBinaryDecoder.fromBytes(badBytes), throwsFormatException);
     });
   });
 }

@@ -107,7 +107,8 @@ class _DiagnosticsOverlayState extends State<DiagnosticsOverlay> {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Diagnostics report copied to clipboard!'),
+                        content:
+                            Text('Diagnostics report copied to clipboard!'),
                         duration: Duration(seconds: 2),
                       ),
                     );
@@ -178,8 +179,8 @@ class _DiagnosticsOverlayState extends State<DiagnosticsOverlay> {
                 padding: const EdgeInsets.only(left: 4.0, bottom: 2.0),
                 child: Text(
                   'Rejected: ${d.rejectedReasons.entries.where((e) => e.value > 0).map((e) => "${e.key.name}:${e.value}").join(", ")}',
-                  style: const TextStyle(
-                      color: Color(0xFFFF9500), fontSize: 9.5),
+                  style:
+                      const TextStyle(color: Color(0xFFFF9500), fontSize: 9.5),
                 ),
               ),
 
@@ -217,8 +218,8 @@ class _DiagnosticsOverlayState extends State<DiagnosticsOverlay> {
                 padding: const EdgeInsets.only(left: 4.0, bottom: 2.0),
                 child: Text(
                   'Err: ${d.soundLastError}',
-                  style: const TextStyle(
-                      color: Color(0xFFFF453A), fontSize: 9.5),
+                  style:
+                      const TextStyle(color: Color(0xFFFF453A), fontSize: 9.5),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

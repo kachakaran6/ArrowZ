@@ -642,10 +642,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   borderRadius: BorderRadius.circular(4.0),
                   child: LinearProgressIndicator(
                     value: chapterProgress,
-                    backgroundColor:
-                        tokens.threadFaint.withValues(alpha: 0.6),
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(tokens.accent),
+                    backgroundColor: tokens.threadFaint.withValues(alpha: 0.6),
+                    valueColor: AlwaysStoppedAnimation<Color>(tokens.accent),
                     minHeight: 4.5,
                   ),
                 ),
