@@ -202,6 +202,7 @@ class GameController extends StateNotifier<GameState> {
       );
 
       audio.playComplete();
+      haptics.success();
       snapshotRepo.clearSnapshot();
 
       if (isQaSession) {

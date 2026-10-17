@@ -3,6 +3,7 @@ import 'package:arrowtapout/core/debug_log.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/diagnostics/diagnostics.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum SoundEvent {
@@ -21,38 +22,92 @@ abstract class SoundService {
 
 class _SoundVoice {
   _SoundVoice({
-    required this.player,
     required this.source,
-  });
+    required this.createPlayer,
+    required this.onComplete,
+  }) {
+    _initPlayer();
+  }
 
-  final AudioPlayer player;
   final Source source;
+  final AudioPlayer Function() createPlayer;
+  final void Function() onComplete;
+
+  late AudioPlayer player;
   double startTimeMs = 0.0;
   bool isPlaying = false;
   StreamSubscription<void>? completeSub;
   Timer? safetyTimer;
 
+  void _initPlayer() {
+    try {
+      player = createPlayer();
+      completeSub = player.onPlayerComplete.listen((_) {
+        isPlaying = false;
+        safetyTimer?.cancel();
+        onComplete();
+      });
+    } catch (e) {
+      debugLog('Voice player creation error: $e');
+    }
+  }
+
+  /// Self-healing recovery: cleanly tears down the broken player
+  /// and spawns a fresh AudioPlayer instance so the voice pool never stays dead.
+  void recover() {
+    try {
+      completeSub?.cancel();
+      safetyTimer?.cancel();
+      player.dispose();
+    } catch (_) {}
+    isPlaying = false;
+    _initPlayer();
+    onComplete();
+  }
+
+  Future<void> stop() async {
+    safetyTimer?.cancel();
+    isPlaying = false;
+    try {
+      await player.stop();
+    } catch (_) {}
+    onComplete();
+  }
+
   void dispose() {
     completeSub?.cancel();
     safetyTimer?.cancel();
-    player.dispose();
+    try {
+      player.dispose();
+    } catch (_) {}
   }
 }
 
 class AudioService implements SoundService {
-  AudioService([this._ref]) {
-    // If a Ref is supplied, listen to settings synchronously
+  AudioService([
+    this._ref,
+    AudioPlayer Function()? playerFactory,
+  ]) : _playerFactory = playerFactory ?? _defaultPlayerFactory {
     if (_ref != null) {
       try {
         _soundEnabled = _ref.read(settingsProvider).sound;
         _ref.listen<SettingsState>(settingsProvider, (_, next) {
-          _soundEnabled = next.sound;
+          updateSoundEnabled(next.sound);
         });
       } catch (_) {}
     }
   }
 
   final Ref? _ref;
+  final AudioPlayer Function() _playerFactory;
+
+  static AudioPlayer _defaultPlayerFactory() {
+    final player = AudioPlayer();
+    try {
+      player.setPlayerMode(PlayerMode.lowLatency);
+    } catch (_) {}
+    return player;
+  }
 
   static const int _pullVoiceCount = 4;
   final List<_SoundVoice> _pullVoices = [];
@@ -62,9 +117,25 @@ class AudioService implements SoundService {
 
   bool _initialized = false;
   bool _soundEnabled = true;
+  Completer<void>? _initCompleter;
 
   void updateSoundEnabled(bool enabled) {
     _soundEnabled = enabled;
+    if (!enabled) {
+      _stopAllVoices();
+    }
+  }
+
+  void _stopAllVoices() {
+    for (final v in _pullVoices) {
+      unawaited(v.stop());
+    }
+    for (final v in _blockVoices) {
+      unawaited(v.stop());
+    }
+    _completeVoice?.stop();
+    _uiVoice?.stop();
+    _updateInFlightCount();
   }
 
   @override
@@ -73,29 +144,58 @@ class AudioService implements SoundService {
   @override
   Future<void> init() async {
     if (_initialized) return;
-    try {
-      await AudioPlayer.global.setAudioContext(
-        AudioContext(
-          android: const AudioContextAndroid(
-            isSpeakerphoneOn: false,
-            stayAwake: false,
-            contentType: AndroidContentType.sonification,
-            usageType: AndroidUsageType.assistanceSonification,
-            audioFocus: AndroidAudioFocus.none,
-          ),
-          iOS: AudioContextIOS(
-            category: AVAudioSessionCategory.ambient,
-            options: const {},
-          ),
-        ),
-      );
+    if (_initCompleter != null) {
+      return _initCompleter!.future;
+    }
 
-      _pullVoices.clear();
+    final completer = Completer<void>();
+    _initCompleter = completer;
+
+    try {
+      bool isPluginAvailable = true;
+      // 1. Configure audio context safely. Non-fatal if unsupported on platform/test.
+      try {
+        await AudioPlayer.global.setAudioContext(
+          AudioContext(
+            android: const AudioContextAndroid(
+              isSpeakerphoneOn: false,
+              stayAwake: false,
+              contentType: AndroidContentType.sonification,
+              usageType: AndroidUsageType.assistanceSonification,
+              audioFocus: AndroidAudioFocus.none,
+            ),
+            iOS: AudioContextIOS(
+              category: AVAudioSessionCategory.ambient,
+              options: const {},
+            ),
+          ),
+        );
+      } on MissingPluginException {
+        // Headless test environment without native audioplayers plugin registered
+        isPluginAvailable = false;
+        debugLog(
+            'AudioService: native audioplayers plugin not registered (headless test)');
+      } catch (e) {
+        debugLog('AudioPlayer.global.setAudioContext note: $e');
+      }
+
+      // If native plugin is not registered and using default player factory,
+      // avoid spawning native AudioPlayers that will throw MissingPluginException.
+      if (!isPluginAvailable &&
+          identical(_playerFactory, _defaultPlayerFactory)) {
+        _initialized = true;
+        completer.complete();
+        return;
+      }
+
+      // 2. Clean up any existing voices before initializing fresh pool.
+      _disposeVoices();
+
+      // 3. Allocate fresh pre-configured voice pools.
       for (var i = 0; i < _pullVoiceCount; i++) {
         _pullVoices.add(_createVoice(AssetSource('audio/pull.ogg')));
       }
 
-      _blockVoices.clear();
       for (var i = 0; i < 2; i++) {
         _blockVoices.add(_createVoice(AssetSource('audio/block.ogg')));
       }
@@ -105,25 +205,27 @@ class AudioService implements SoundService {
 
       _initialized = true;
       _updateDiagnosticsPool();
-      debugLog('AudioService initialized with ${_pullVoices.length} pull voices');
+      debugLog(
+          'AudioService initialized with ${_pullVoices.length} pull voices');
+      completer.complete();
     } catch (e) {
       Diagnostics.instance.soundLastError = e.toString();
       debugLog('AudioService init failed: $e');
+      _initialized = true;
+      completer.complete();
+    } finally {
+      if (_initCompleter == completer) {
+        _initCompleter = null;
+      }
     }
   }
 
   _SoundVoice _createVoice(Source source) {
-    final player = AudioPlayer();
-    player.setPlayerMode(PlayerMode.lowLatency);
-
-    final voice = _SoundVoice(player: player, source: source);
-    voice.completeSub = player.onPlayerComplete.listen((_) {
-      voice.isPlaying = false;
-      voice.safetyTimer?.cancel();
-      _updateInFlightCount();
-    });
-
-    return voice;
+    return _SoundVoice(
+      source: source,
+      createPlayer: _playerFactory,
+      onComplete: _updateInFlightCount,
+    );
   }
 
   void _updateInFlightCount() {
@@ -145,10 +247,9 @@ class AudioService implements SoundService {
     if (!_soundEnabled) return;
 
     if (!_initialized) {
-      // Lazy init fallback if not awaited in main
       unawaited(init().then((_) {
-        if (_initialized) _dispatchPlay(e);
-      }));
+        if (_initialized && _soundEnabled) _dispatchPlay(e);
+      }).catchError((_) {}));
       return;
     }
 
@@ -158,12 +259,15 @@ class AudioService implements SoundService {
   void _dispatchPlay(SoundEvent e) {
     switch (e) {
       case SoundEvent.pull:
-        _playVoiceWithStealing(_pullVoices, volume: 0.85, safetyDurationMs: 450);
+        _playVoiceWithStealing(_pullVoices,
+            volume: 0.85, safetyDurationMs: 450);
       case SoundEvent.block:
-        _playVoiceWithStealing(_blockVoices, volume: 0.90, safetyDurationMs: 400);
+        _playVoiceWithStealing(_blockVoices,
+            volume: 0.90, safetyDurationMs: 400);
       case SoundEvent.complete:
         if (_completeVoice != null) {
-          _playSingleVoice(_completeVoice!, volume: 0.95, safetyDurationMs: 900);
+          _playSingleVoice(_completeVoice!,
+              volume: 0.95, safetyDurationMs: 900);
         }
       case SoundEvent.ui:
         if (_uiVoice != null) {
@@ -198,7 +302,8 @@ class AudioService implements SoundService {
     }
 
     if (target != null) {
-      _playSingleVoice(target, volume: volume, safetyDurationMs: safetyDurationMs);
+      _playSingleVoice(target,
+          volume: volume, safetyDurationMs: safetyDurationMs);
     }
   }
 
@@ -221,6 +326,12 @@ class AudioService implements SoundService {
 
     unawaited(() async {
       try {
+        // If this voice is playing (e.g. stolen voice), cleanly stop it before restarting
+        // to prevent native MediaPlayer / SoundPool state collisions on Android
+        try {
+          await voice.player.stop();
+        } catch (_) {}
+
         await voice.player.play(voice.source, volume: volume);
         Diagnostics.instance.soundStarted++;
       } catch (e) {
@@ -230,6 +341,9 @@ class AudioService implements SoundService {
         voice.isPlaying = false;
         voice.safetyTimer?.cancel();
         _updateInFlightCount();
+
+        // Auto-heal this voice player so future events don't fail permanently
+        voice.recover();
       }
     }());
   }
@@ -238,6 +352,8 @@ class AudioService implements SoundService {
   void onResume() {
     if (!_initialized) {
       unawaited(init());
+    } else {
+      _updateDiagnosticsPool();
     }
   }
 
@@ -247,19 +363,26 @@ class AudioService implements SoundService {
   void playComplete() => play(SoundEvent.complete);
   void playUi() => play(SoundEvent.ui);
 
-  void dispose() {
+  void _disposeVoices() {
     for (final v in _pullVoices) {
       v.dispose();
     }
     _pullVoices.clear();
+
     for (final v in _blockVoices) {
       v.dispose();
     }
     _blockVoices.clear();
+
     _completeVoice?.dispose();
     _completeVoice = null;
+
     _uiVoice?.dispose();
     _uiVoice = null;
+  }
+
+  void dispose() {
+    _disposeVoices();
     _initialized = false;
   }
 }

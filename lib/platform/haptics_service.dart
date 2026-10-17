@@ -1,7 +1,7 @@
 import 'dart:async';
 
+import 'package:arrowtapout/core/debug_log.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +12,8 @@ abstract class HapticPlatformExecutor {
   Future<void> mediumImpact();
   Future<void> heavyImpact() => mediumImpact();
   Future<void> selectionClick();
+  Future<void> vibrate() => mediumImpact();
+  Future<void> success() => mediumImpact();
 }
 
 /// Default system platform executor invoking Flutter's [HapticFeedback].
@@ -29,6 +31,12 @@ class SystemHapticPlatformExecutor implements HapticPlatformExecutor {
 
   @override
   Future<void> selectionClick() => HapticFeedback.selectionClick();
+
+  @override
+  Future<void> vibrate() => HapticFeedback.vibrate();
+
+  @override
+  Future<void> success() => HapticFeedback.mediumImpact();
 }
 
 /// Haptic feedback service for ArrowZ.
@@ -39,18 +47,36 @@ class HapticsService {
   HapticsService(
     this._ref, {
     HapticPlatformExecutor? executor,
-  }) : _executor = executor ?? const SystemHapticPlatformExecutor();
+  }) : _executor = executor ?? const SystemHapticPlatformExecutor() {
+    if (_ref != null) {
+      try {
+        _cachedEnabled = _ref.read(settingsProvider).haptics;
+        _ref.listen<SettingsState>(settingsProvider, (_, next) {
+          updateHapticsEnabled(next.haptics);
+        });
+      } catch (_) {}
+    }
+  }
 
-  final Ref _ref;
+  final Ref? _ref;
   final HapticPlatformExecutor _executor;
+
+  bool _cachedEnabled = true;
 
   /// Whether haptic feedback is enabled in user settings.
   bool get isEnabled {
-    try {
-      return _ref.read(settingsProvider).haptics;
-    } catch (_) {
-      return false;
+    if (_ref != null) {
+      try {
+        _cachedEnabled = _ref.read(settingsProvider).haptics;
+      } catch (_) {
+        // Retain cached state during widget or route teardowns
+      }
     }
+    return _cachedEnabled;
+  }
+
+  void updateHapticsEnabled(bool enabled) {
+    _cachedEnabled = enabled;
   }
 
   /// Light haptic feedback triggered immediately on a valid arrow tap/pull.
@@ -61,7 +87,7 @@ class HapticsService {
     try {
       await _executor.lightImpact();
     } catch (e) {
-      debugPrint('HapticsService.light failed: $e');
+      debugLog('HapticsService.light failed: $e');
     }
   }
 
@@ -71,7 +97,7 @@ class HapticsService {
     try {
       await _executor.heavyImpact();
     } catch (e) {
-      debugPrint('HapticsService.heavy failed: $e');
+      debugLog('HapticsService.heavy failed: $e');
     }
   }
 
@@ -81,7 +107,7 @@ class HapticsService {
     try {
       await _executor.mediumImpact();
     } catch (e) {
-      debugPrint('HapticsService.medium failed: $e');
+      debugLog('HapticsService.medium failed: $e');
     }
   }
 
@@ -91,7 +117,17 @@ class HapticsService {
     try {
       await _executor.selectionClick();
     } catch (e) {
-      debugPrint('HapticsService.selection failed: $e');
+      debugLog('HapticsService.selection failed: $e');
+    }
+  }
+
+  /// Celebratory haptic feedback triggered on puzzle level completion.
+  Future<void> success() async {
+    if (!isEnabled) return;
+    try {
+      await _executor.success();
+    } catch (e) {
+      debugLog('HapticsService.success failed: $e');
     }
   }
 

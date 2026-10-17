@@ -1,6 +1,7 @@
 import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
+import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -115,8 +116,11 @@ class PauseSheet extends ConsumerWidget {
                   value: settings.sound,
                   activeThumbColor: tokens.accent,
                   onChanged: (val) {
-                    haptics.selection();
                     settingsNotifier.setSound(val);
+                    haptics.selection();
+                    if (val) {
+                      ref.read(audioServiceProvider).playUi();
+                    }
                   },
                 ),
               ],
@@ -129,8 +133,11 @@ class PauseSheet extends ConsumerWidget {
                   value: settings.haptics,
                   activeThumbColor: tokens.accent,
                   onChanged: (val) {
-                    haptics.selection();
                     settingsNotifier.setHaptics(val);
+                    haptics.updateHapticsEnabled(val);
+                    if (val) {
+                      haptics.selection();
+                    }
                   },
                 ),
               ],

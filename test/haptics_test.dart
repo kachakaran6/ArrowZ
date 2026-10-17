@@ -29,6 +29,8 @@ class SpyHapticPlatformExecutor implements HapticPlatformExecutor {
   int get mediumCount => eventLog.where((e) => e == 'medium').length;
   int get heavyCount => eventLog.where((e) => e == 'heavy').length;
   int get selectionCount => eventLog.where((e) => e == 'selection').length;
+  int get successCount => eventLog.where((e) => e == 'success').length;
+  int get vibrateCount => eventLog.where((e) => e == 'vibrate').length;
 
   @override
   Future<void> lightImpact() async {
@@ -72,6 +74,28 @@ class SpyHapticPlatformExecutor implements HapticPlatformExecutor {
       );
     }
     eventLog.add('selection');
+  }
+
+  @override
+  Future<void> vibrate() async {
+    if (throwOnCall) {
+      throw PlatformException(
+        code: 'VIBRATE_UNAVAILABLE',
+        message: 'Device haptic hardware unavailable or busy',
+      );
+    }
+    eventLog.add('vibrate');
+  }
+
+  @override
+  Future<void> success() async {
+    if (throwOnCall) {
+      throw PlatformException(
+        code: 'VIBRATE_UNAVAILABLE',
+        message: 'Device haptic hardware unavailable or busy',
+      );
+    }
+    eventLog.add('success');
   }
 
   void clear() {
@@ -188,15 +212,14 @@ void main() {
       expect(spyExecutor.lightCount, equals(1));
       expect(spyExecutor.heavyCount + spyExecutor.mediumCount, equals(0));
 
-      final logBeforeCompletion = List<String>.from(spyExecutor.eventLog);
-
       // Wait for completion timer (350ms stillness)
       await Future<void>.delayed(const Duration(milliseconds: 400));
 
       expect(controller.state.status, equals(GameStatus.completed));
-      // Verify NO earlier tap haptics were replayed
-      expect(spyExecutor.eventLog, equals(logBeforeCompletion));
+      // Verify NO earlier tap haptics were replayed and level complete success haptic fired
       expect(spyExecutor.lightCount, equals(1));
+      expect(spyExecutor.successCount, equals(1));
+      expect(spyExecutor.eventLog, equals(['light', 'success']));
     });
 
     test(

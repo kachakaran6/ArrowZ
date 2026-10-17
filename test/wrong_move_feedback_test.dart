@@ -52,6 +52,16 @@ class SpyHapticExecutor implements HapticPlatformExecutor {
     eventLog.add('selection');
   }
 
+  @override
+  Future<void> vibrate() async {
+    eventLog.add('vibrate');
+  }
+
+  @override
+  Future<void> success() async {
+    eventLog.add('success');
+  }
+
   void clear() => eventLog.clear();
 }
 

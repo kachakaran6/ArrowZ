@@ -2,6 +2,7 @@ import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/design/theme_provider.dart';
 import 'package:arrowtapout/design/typography.dart';
 import 'package:arrowtapout/platform/audio_service.dart';
+import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,9 +35,12 @@ class _UnwindAppState extends ConsumerState<UnwindApp> {
 
   @override
   Widget build(BuildContext context) {
-    // Keep sound service enabled flag cached and synchronized
+    // Keep sound and haptic service enabled flags cached and synchronized
     final soundEnabled = ref.watch(settingsProvider.select((s) => s.sound));
     ref.read(audioServiceProvider).updateSoundEnabled(soundEnabled);
+
+    final hapticsEnabled = ref.watch(settingsProvider.select((s) => s.haptics));
+    ref.read(hapticsServiceProvider).updateHapticsEnabled(hapticsEnabled);
 
     final router = ref.watch(appRouterProvider);
     final themeData = ref.watch(currentThemeProvider);

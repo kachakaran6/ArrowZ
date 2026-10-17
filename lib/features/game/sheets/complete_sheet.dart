@@ -65,7 +65,8 @@ class _CompleteSheetState extends State<CompleteSheet>
     final arrowCount = widget.threadsCleared;
     final mistakeCount = widget.mistakes;
 
-    final String arrowPart = '$arrowCount ${arrowCount == 1 ? 'Arrow' : 'Arrows'}';
+    final String arrowPart =
+        '$arrowCount ${arrowCount == 1 ? 'Arrow' : 'Arrows'}';
     final String mistakePart = mistakeCount == 0
         ? '0 Mistakes'
         : '$mistakeCount ${mistakeCount == 1 ? 'Mistake' : 'Mistakes'}';
@@ -89,7 +90,8 @@ class _CompleteSheetState extends State<CompleteSheet>
           borderRadius: BorderRadius.circular(24.0),
           side: BorderSide(color: tokens.threadFaint, width: 1.0),
         ),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
           child: Column(

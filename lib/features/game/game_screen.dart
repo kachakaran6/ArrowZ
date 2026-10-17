@@ -377,6 +377,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
         mistakes: state.mistakes,
         elapsedSeconds: _elapsedSeconds,
         onReplay: () {
+          ref.read(hapticsServiceProvider).selection();
           _sheetOpen = false;
           _animator.finalizeAllRunningAnimations();
           final dpr = MediaQuery.devicePixelRatioOf(context);
@@ -390,6 +391,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
           _controller?.restartLevel(cellSize);
         },
         onNextLevel: () {
+          ref.read(hapticsServiceProvider).selection();
           _sheetOpen = false;
           _animator.finalizeAllRunningAnimations();
           if (isQa) {
@@ -413,6 +415,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
       enableDrag: true,
       builder: (ctx) => FailedSheet(
         onRetry: () {
+          ref.read(hapticsServiceProvider).selection();
           _sheetOpen = false;
           final dpr = MediaQuery.devicePixelRatioOf(context);
           final cellSize = ComponentTokens.computeLatticeCellSize(
@@ -425,6 +428,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
           _controller?.restartLevel(cellSize);
         },
         onLevels: () {
+          ref.read(hapticsServiceProvider).selection();
           _sheetOpen = false;
           context.go(Routes.levels);
         },

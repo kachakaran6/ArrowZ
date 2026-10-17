@@ -4,6 +4,7 @@ import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/primitives.dart';
+import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/share_service.dart';
 import 'package:arrowtapout/router/routes.dart';
@@ -341,8 +342,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     value: settings.sound,
                     activeTrackColor: tokens.accent,
                     onChanged: (val) {
-                      haptics.selection();
                       settingsNotifier.setSound(val);
+                      haptics.selection();
+                      if (val) {
+                        ref.read(audioServiceProvider).playUi();
+                      }
                     },
                   ),
                   Divider(
@@ -357,8 +361,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     value: settings.haptics,
                     activeTrackColor: tokens.accent,
                     onChanged: (val) {
-                      haptics.selection();
                       settingsNotifier.setHaptics(val);
+                      haptics.updateHapticsEnabled(val);
+                      if (val) {
+                        haptics.selection();
+                      }
                     },
                   ),
                   Divider(
