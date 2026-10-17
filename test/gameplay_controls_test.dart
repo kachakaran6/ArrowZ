@@ -32,6 +32,18 @@ class _FakeLevelRepository implements LevelRepository {
   final Level testLevel;
 
   @override
+  int get cachedTotalLevels => 500;
+
+  @override
+  Future<int> getTotalLevelCount() async => 500;
+
+  @override
+  Future<bool> isValidLevelId(int id) async => id >= 1 && id <= 500;
+
+  @override
+  Future<Level?> tryLoadLevel(int id) async => testLevel;
+
+  @override
   Future<Level> loadLevel(int id) async => testLevel;
 
   @override

@@ -1,3 +1,4 @@
+import 'package:arrowtapout/core/qa_config.dart';
 import 'package:arrowtapout/data/arrow_skin.dart';
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
@@ -85,7 +86,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               Center(
                 child: Text(
                   'Customise arrowheads and emojis across all levels',
-                  style: tokens.typography.caption.copyWith(color: tokens.inkMuted),
+                  style: tokens.typography.caption
+                      .copyWith(color: tokens.inkMuted),
                 ),
               ),
               const SizedBox(height: Primitives.space16),
@@ -116,9 +118,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               : tokens.surfaceRaised,
                           borderRadius: BorderRadius.circular(12.0),
                           border: Border.all(
-                            color: isSelected
-                                ? tokens.accent
-                                : tokens.threadFaint,
+                            color:
+                                isSelected ? tokens.accent : tokens.threadFaint,
                             width: 1.5,
                           ),
                         ),
@@ -498,6 +499,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 },
               ),
             ),
+
+            if (QaConfig.isQaAvailable) ...[
+              const SizedBox(height: Primitives.space24),
+              _SectionHeader(title: 'Internal Testing', tokens: tokens),
+              Card(
+                color: tokens.surface,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(Primitives.radiusCard),
+                  side: BorderSide(color: tokens.threadFaint, width: 1.0),
+                ),
+                child: ListTile(
+                  key: const Key('qa_console_tile'),
+                  leading:
+                      Icon(Icons.build_circle_outlined, color: tokens.accent),
+                  title:
+                      Text('ArrowZ QA Console', style: tokens.typography.body),
+                  subtitle: Text(
+                    'Level jumping, puzzle diagnostics & testing tools',
+                    style: tokens.typography.caption
+                        .copyWith(color: tokens.inkMuted),
+                  ),
+                  trailing:
+                      Icon(Icons.chevron_right_rounded, color: tokens.inkMuted),
+                  onTap: () {
+                    haptics.selection();
+                    context.push(Routes.qaConsole);
+                  },
+                ),
+              ),
+            ],
+
             const SizedBox(height: Primitives.space32),
           ],
         ),

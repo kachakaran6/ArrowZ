@@ -1,9 +1,13 @@
+import 'package:arrowtapout/core/qa_config.dart';
+import 'package:arrowtapout/data/level_repository.dart';
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/features/dev/animation_lab_screen.dart';
 import 'package:arrowtapout/features/game/game_screen.dart';
 import 'package:arrowtapout/features/home/home_screen.dart';
 import 'package:arrowtapout/features/howto/howto_screen.dart';
 import 'package:arrowtapout/features/levels/levels_screen.dart';
+import 'package:arrowtapout/features/qa/qa_console_screen.dart';
+import 'package:arrowtapout/features/qa/qa_session.dart';
 import 'package:arrowtapout/features/settings/settings_screen.dart';
 import 'package:arrowtapout/features/settings/theme_picker_screen.dart';
 import 'package:arrowtapout/features/splash/splash_screen.dart';
@@ -51,8 +55,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         redirect: (context, state) {
           final idParam = state.pathParameters['id'];
           final id = int.tryParse(idParam ?? '');
-          if (id == null || id < 1 || id > 200) {
+          final totalLevels =
+              ref.read(levelRepositoryProvider).cachedTotalLevels;
+          if (id == null || id < 1 || id > totalLevels) {
             return Routes.levels;
+          }
+          // If in an authorized QA session for this level, allow direct play without locking redirect
+          if (QaConfig.isQaAvailable) {
+            final qaSession = ref.read(qaSessionProvider);
+            if (qaSession.isActive && qaSession.activeLevelId == id) {
+              return null;
+            }
           }
           final highest = ref.read(progressProvider).highestUnlocked;
           if (id > highest) {
@@ -123,6 +136,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           context: context,
           state: state,
           child: const AnimationLabScreen(),
+        ),
+      ),
+      // QA Testing Console (Internal Tools)
+      GoRoute(
+        path: Routes.qaConsole,
+        redirect: (context, state) {
+          if (!QaConfig.isQaAvailable) {
+            return Routes.home;
+          }
+          return null;
+        },
+        pageBuilder: (context, state) => buildFadeThroughPage(
+          context: context,
+          state: state,
+          child: const QaConsoleScreen(),
         ),
       ),
     ],

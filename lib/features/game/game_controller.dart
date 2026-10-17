@@ -11,6 +11,7 @@ import 'package:arrowtapout/engine/level.dart';
 import 'package:arrowtapout/features/game/game_state.dart';
 import 'package:arrowtapout/features/game/thread_animator.dart';
 import 'package:arrowtapout/features/game/wrong_move_feedback_controller.dart';
+import 'package:arrowtapout/features/qa/qa_session.dart';
 import 'package:arrowtapout/platform/audio_service.dart';
 import 'package:arrowtapout/platform/haptics_service.dart';
 import 'package:arrowtapout/platform/notification_service.dart';
@@ -28,6 +29,8 @@ class GameController extends StateNotifier<GameState> {
     this.streakRepo,
     this.notificationService,
     this.reduceMotion = false,
+    this.isQaSession = false,
+    this.qaSessionController,
     WrongMoveFeedbackController? feedbackController,
     LevelSnapshot? initialSnapshot,
     bool coachMarkShown = false,
@@ -59,6 +62,8 @@ class GameController extends StateNotifier<GameState> {
   final StreakRepository? streakRepo;
   final NotificationService? notificationService;
   final bool reduceMotion;
+  final bool isQaSession;
+  final QaSessionController? qaSessionController;
 
   Timer? _completeTimer;
   Timer? _snapshotDebounceTimer;
@@ -199,14 +204,21 @@ class GameController extends StateNotifier<GameState> {
       audio.playComplete();
       snapshotRepo.clearSnapshot();
 
-      progress.recordLevelCompleted(
-        levelId: state.level.id,
-        starsEarned: stars,
-        threadsCleared: state.level.threads.length,
-        mistakes: state.mistakes,
-      );
+      if (isQaSession) {
+        qaSessionController?.recordQaLevelCompleted(
+          levelId: state.level.id,
+          stars: stars,
+        );
+      } else {
+        progress.recordLevelCompleted(
+          levelId: state.level.id,
+          starsEarned: stars,
+          threadsCleared: state.level.threads.length,
+          mistakes: state.mistakes,
+        );
 
-      streakRepo?.recordQualifyingPlay(null, notificationService);
+        streakRepo?.recordQualifyingPlay(null, notificationService);
+      }
     }
 
     void scheduleStillnessCompletion() {
@@ -325,6 +337,7 @@ class GameController extends StateNotifier<GameState> {
   }
 
   void _saveSnapshotDebounced() {
+    if (isQaSession) return;
     _snapshotDebounceTimer?.cancel();
     _snapshotDebounceTimer = Timer(const Duration(milliseconds: 250), () {
       if (!mounted || state.status != GameStatus.playing) return;

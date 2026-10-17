@@ -1,7 +1,6 @@
 import 'package:arrowtapout/data/progress_repository.dart';
 import 'package:arrowtapout/data/settings_repository.dart';
 import 'package:arrowtapout/data/streak_repository.dart';
-import 'package:arrowtapout/design/app_tokens.dart';
 import 'package:arrowtapout/design/theme_provider.dart';
 import 'package:arrowtapout/design/themes.dart';
 import 'package:arrowtapout/features/game/sheets/complete_sheet.dart';
@@ -12,13 +11,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('User Bug Fixes & Polish Verification', () {
-    testWidgets('1. CompleteSheet shows title "Complete", 3 stars, Arrows terminology, and only Replay & Next Level buttons', (tester) async {
+    testWidgets(
+        '1. CompleteSheet shows title "Complete", 3 stars, Arrows terminology, and only Replay & Next Level buttons',
+        (tester) async {
       bool replayed = false;
 
       await tester.pumpWidget(
@@ -63,7 +62,9 @@ void main() {
       expect(replayed, isTrue);
     });
 
-    testWidgets('1b. CompleteSheet Next Level button triggers onNextLevel callback', (tester) async {
+    testWidgets(
+        '1b. CompleteSheet Next Level button triggers onNextLevel callback',
+        (tester) async {
       bool nextLeveled = false;
 
       await tester.pumpWidget(
@@ -92,7 +93,9 @@ void main() {
       expect(nextLeveled, isTrue);
     });
 
-    test('2. Weekday recent activity always orders starting from Sunday (S M T W T F S)', () {
+    test(
+        '2. Weekday recent activity always orders starting from Sunday (S M T W T F S)',
+        () {
       final repo = StreakRepository(null);
       // Fixed test date: Thursday Oct 15, 2026
       final testThursday = DateTime(2026, 10, 15);
@@ -117,7 +120,9 @@ void main() {
       expect(activity[6].date.weekday, equals(DateTime.saturday));
     });
 
-    testWidgets('3. Theme choice in settings dynamically updates themeModeProvider and currentTokensProvider', (tester) async {
+    testWidgets(
+        '3. Theme choice in settings dynamically updates themeModeProvider and currentTokensProvider',
+        (tester) async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
 
@@ -148,18 +153,22 @@ void main() {
       final container = ProviderScope.containerOf(element);
 
       // Change theme in settings to Rosewood
-      await container.read(settingsProvider.notifier).setThemeChoice(AppThemeMode.rosewood);
+      await container
+          .read(settingsProvider.notifier)
+          .setThemeChoice(AppThemeMode.rosewood);
       await tester.pumpAndSettle();
 
       // Should automatically re-render with Rosewood!
       expect(find.text('ActiveTheme: rosewood'), findsOneWidget);
     });
 
-    testWidgets('4. Subtitle displays Escape Puzzle instead of Thread Puzzle', (tester) async {
+    testWidgets('4. Subtitle displays Escape Puzzle instead of Thread Puzzle',
+        (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            notificationServiceProvider.overrideWithValue(FakeNotificationService()),
+            notificationServiceProvider
+                .overrideWithValue(FakeNotificationService()),
           ],
           child: MaterialApp(
             theme: AppThemes.buildThemeData(

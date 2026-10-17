@@ -9,6 +9,7 @@ abstract final class Routes {
   static const String stats = '/stats';
   static const String streak = '/streak';
   static const String devLab = '/dev/lab';
+  static const String qaConsole = '/qa';
 
   /// Generates the route path for playing level [id].
   static String play(int id) => '/play/$id';

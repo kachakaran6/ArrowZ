@@ -32,7 +32,8 @@ class LevelRepository {
         byteData = await rootBundle.load('assets/levels.bin');
       }
       _binaryDecoder = LevelBinaryDecoder.fromBytes(
-        byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes),
+        byteData.buffer
+            .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes),
       );
     } catch (_) {
       // Fallback to chapter JSONs if binary is not bundled
@@ -103,6 +104,32 @@ class LevelRepository {
       (l) => l.id == id,
       orElse: () => throw StateError('Level $id not found in chapter $chapter'),
     );
+  }
+
+  /// Total number of levels available in the game binary/bundled chapters (e.g. 500).
+  int get cachedTotalLevels => _binaryDecoder?.levelCount ?? 500;
+
+  /// Ensures metadata is decoded and returns the verified total available level count.
+  Future<int> getTotalLevelCount() async {
+    await _ensureBinaryDecoder();
+    return _binaryDecoder?.levelCount ?? 500;
+  }
+
+  /// Verifies if a given [id] is a valid level number within bounds.
+  Future<bool> isValidLevelId(int id) async {
+    if (id < 1) return false;
+    final total = await getTotalLevelCount();
+    return id <= total;
+  }
+
+  /// Safely attempts to load a level by its [id], returning null if it cannot be loaded.
+  Future<Level?> tryLoadLevel(int id) async {
+    try {
+      if (id < 1) return null;
+      return await loadLevel(id);
+    } catch (_) {
+      return null;
+    }
   }
 }
 
