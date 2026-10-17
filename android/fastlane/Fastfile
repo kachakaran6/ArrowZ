@@ -85,9 +85,10 @@ platform :android do
       return aab_path
     end
 
-    UI.message("📦 Building Flutter App Bundle (build number: #{build_num})...")
+    dart_defines = options[:dart_define] ? " #{options[:dart_define]}" : (ENV["DART_DEFINE"] ? " #{ENV["DART_DEFINE"]}" : " --dart-define=ENABLE_QA_TOOLS=true")
+    UI.message("📦 Building Flutter App Bundle (build number: #{build_num}, defines: #{dart_defines.strip})...")
     Dir.chdir(root_dir) do
-      sh("flutter build appbundle --release --build-number=#{build_num}")
+      sh("flutter build appbundle --release --build-number=#{build_num}#{dart_defines}")
     end
 
     unless File.exist?(aab_path)
@@ -98,13 +99,14 @@ platform :android do
     aab_path
   end
 
-  def build_flutter_apk(build_num)
+  def build_flutter_apk(build_num, options = {})
     root_dir = File.expand_path("../..", __dir__)
     apk_path = File.join(root_dir, "build", "app", "outputs", "flutter-apk", "app-release.apk")
+    dart_defines = options[:dart_define] ? " #{options[:dart_define]}" : (ENV["DART_DEFINE"] ? " #{ENV["DART_DEFINE"]}" : " --dart-define=ENABLE_QA_TOOLS=true")
 
-    UI.message("📦 Building Flutter Release APK (build number: #{build_num})...")
+    UI.message("📦 Building Flutter Release APK (build number: #{build_num}, defines: #{dart_defines.strip})...")
     Dir.chdir(root_dir) do
-      sh("flutter build apk --release --build-number=#{build_num}")
+      sh("flutter build apk --release --build-number=#{build_num}#{dart_defines}")
     end
 
     unless File.exist?(apk_path)
